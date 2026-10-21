@@ -130,7 +130,7 @@ export function LandingPortal({
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-white/90 backdrop-blur-sm p-0.5 shadow-md shadow-black/40 border border-white/25 flex items-center justify-center shrink-0">
             <img
-              src="/assets/aistudio/cropped-itc_tight.png"
+              src="/assets/cropped-itc_tight.png"
               alt="ITC School Logo"
               className="w-full h-full object-contain"
               referrerPolicy="no-referrer"
@@ -174,7 +174,7 @@ export function LandingPortal({
         {/* School Logo */}
         <div className="mb-2 sm:mb-2.5 inline-flex items-center justify-center transition-transform duration-200 hover:scale-105">
           <img
-            src="/assets/aistudio/itc_front_tight.png"
+            src="/assets/itc_front_tight.png"
             alt="ITC School Logo"
             className="w-24 h-24 sm:w-28 sm:h-28 md:w-30 md:h-30 object-contain drop-shadow-[0_10px_22px_rgba(0,0,0,0.65)]"
             referrerPolicy="no-referrer"

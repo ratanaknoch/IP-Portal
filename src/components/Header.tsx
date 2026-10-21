@@ -91,7 +91,7 @@ export function Header({
             >
               <div className="w-9 h-9 rounded-lg bg-white/90 backdrop-blur-sm p-0.5 shadow-md shadow-black/40 border border-white/25 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <img
-                  src="/assets/aistudio/cropped-itc_tight.png"
+                  src="/assets/cropped-itc_tight.png"
                   alt="ITC School Logo"
                   className="w-full h-full object-contain"
                   referrerPolicy="no-referrer"
