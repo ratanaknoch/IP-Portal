@@ -71,7 +71,7 @@ export function LandingPortal({
       setShowMonitorAuthModal(false);
       onEnterClassMonitor(clean);
     } else {
-      setPinError('Invalid Password. Allowed passwords: "IPGEN1", "IPGEN2", "IPGEN3".');
+      setPinError('Invalid password. Access restricted to class monitors.');
     }
   };
 
@@ -448,16 +448,12 @@ export function LandingPortal({
                     setMonitorPinInput(e.target.value);
                     setPinError('');
                   }}
-                  placeholder="Enter IPGEN1, IPGEN2, or IPGEN3"
+                  placeholder="Enter monitor password"
                   className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:ring-1 focus:ring-sky-400 font-mono tracking-wider"
                   autoFocus
                 />
-                {pinError ? (
+                {pinError && (
                   <p className="text-[11px] text-rose-400 mt-1">{pinError}</p>
-                ) : (
-                  <p className="text-[10px] text-slate-500 mt-1">
-                    Allowed passwords: <span className="font-mono text-slate-300">IPGEN1</span>, <span className="font-mono text-slate-300">IPGEN2</span>, or <span className="font-mono text-slate-300">IPGEN3</span>.
-                  </p>
                 )}
               </div>
 
