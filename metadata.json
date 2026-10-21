@@ -1,0 +1,6 @@
+{
+  "name": "ITC Engineering Timetable Portal",
+  "description": "Timetable management and schedule viewing system for the Institute of Technology of Cambodia International Engineering School.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

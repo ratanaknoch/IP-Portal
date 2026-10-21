@@ -1,0 +1,264 @@
+You are an expert full-stack web developer and UI/UX designer. Build a complete, responsive Single-Page Application (SPA) in modern React (with Tailwind CSS and Lucide React icons) for the **Institute of Technology of Cambodia (ITC) - International Engineering School** timetable management and schedule viewing system.
+
+### App Overview & Objective
+Build an interactive academic dashboard for Semester 1 (Weeks 1–8, Academic Year 2026–2027) covering all 3 Cohorts / Generations (I2, I3, I4) across 7 Groups:
+- **Generation I2:** `I2-SE`, `I2-AIECS`, `I2-CMIE`
+- **Generation I3:** `I3-SE`, `I3-AIECS`
+- **Generation I4:** `I4-SE`, `I4-AIECS`
+
+---
+
+### Core Features & Views
+
+1. **Header & Quick Stats:**
+   - Institution Branding: "Institute of Technology of Cambodia - International Engineering School".
+   - Current Date & Time indicator (Cambodia UTC+7) with a "Live / In Session" badge for classes happening right now.
+   - Quick stats cards: Total Groups (7), Cohorts (3), Total Lecturers, Active Rooms.
+
+2. **Multi-Mode Navigation:**
+   - **Mode A: By Group / Cohort (Primary Timetable View):**
+     - Cohort tab switcher (All, I2, I3, I4) + Group pills (`I2-SE`, `I2-AIECS`, `I2-CMIE`, `I3-SE`, `I3-AIECS`, `I4-SE`, `I4-AIECS`).
+     - Display a full weekly timetable matrix (Monday through Saturday) with standard slots:
+       - Morning: `7h00 - 7h55`, `8h00 - 8h55`, `9h10 - 10h05`, `10h10 - 11h05`
+       - Afternoon: `13h00 - 13h55`, `14h00 - 14h55`, `15h10 - 16h05`, `16h10 - 17h05`
+     - Clean card blocks for each session showing: Course Name, Session Type badge (`Lecture`, `Practical`, `TP`, `Tutorial`), Instructor name, and Room badge.
+   - **Mode B: By Lecturer:**
+     - Dropdown / search to select an instructor (e.g., Mr. PICH Reatrey, Dr. KUY Movsun, Mr. TAL Tongsreng, etc.) to view their consolidated weekly teaching schedule across groups.
+   - **Mode C: By Room / Laboratory:**
+     - Select a room (`A-109`, `A-401`, `A-417`, `A-420`, `A-402`, `J-601`, `J-602`, `J-603`, `J-609`) to see occupancy and available free slots.
+   - **Mode D: Today's Agenda (Daily View):**
+     - Select any day of the week (or auto-default to today) for a streamlined timeline view.
+
+3. **Color Coding & Visual Hierarchy:**
+   - **Lecture:** Indigo / Blue tint
+   - **Practical / TP:** Emerald / Green tint
+   - **Tutorial:** Amber / Orange tint
+   - High-contrast, clean typography, rounded corners, subtle shadows, and dark/light mode toggle.
+
+4. **Utilities:**
+   - Search bar (instantly highlights matches by course name, lecturer, or room).
+   - "Print Schedule / Export PDF" button formatted with `@media print` rules.
+
+---
+
+### Embedded Schedule Dataset (7 Groups)
+
+Use this complete dataset directly in the application state:
+
+```javascript
+const SCHEDULE_DATA = {
+  meta: {
+    institution: "Institute of Technology of Cambodia",
+    faculty: "International Engineering School",
+    academicYear: "2026 - 2027",
+    semester: "Semester 1",
+    period: "Week 1-8 (From 05/10/2026)",
+    timeSlots: [
+      "7h00 - 7h55",
+      "8h00 - 8h55",
+      "9h10 - 10h05",
+      "10h10 - 11h05",
+      "13h00 - 13h55",
+      "14h00 - 14h55",
+      "15h10 - 16h05",
+      "16h10 - 17h05"
+    ],
+    days: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+  },
+  groups: [
+    {
+      id: "I2-SE",
+      cohort: "I2",
+      name: "I2 - Software Engineering",
+      schedule: [
+        { day: "Monday", time: "9h10 - 10h05", course: "Fundamental Concept of Data Security", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-109" },
+        { day: "Monday", time: "10h10 - 11h05", course: "Fundamental Concept of Data Security", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-109" },
+        { day: "Monday", time: "13h00 - 13h55", course: "Project and Seminart III", type: "Practical", lecturer: "Dr. SRANG Sarot", room: "Room A-401" },
+        { day: "Monday", time: "14h00 - 14h55", course: "Project and Seminart III", type: "Practical", lecturer: "Dr. SRANG Sarot", room: "Room A-401" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Fundamental Concept of Data Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-602" },
+        { day: "Monday", time: "16h10 - 17h05", course: "Fundamental Concept of Data Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-602" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Programming Design & Implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Tuesday", time: "10h10 - 11h05", course: "Programming Design & Implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Wednesday", time: "7h00 - 7h55", course: "Introduction to Software Engineering", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room J-602" },
+        { day: "Wednesday", time: "8h00 - 8h55", course: "Introduction to Software Engineering", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room J-602" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "UI/UX", type: "Lecture", lecturer: "Mr. OL Phearun", room: "Room A-402" },
+        { day: "Wednesday", time: "10h10 - 11h05", course: "UI/UX", type: "Lecture", lecturer: "Mr. OL Phearun", room: "Room A-402" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "UI/UX", type: "Practical", lecturer: "Mr. OL Phearun", room: "Room J-602" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "UI/UX", type: "Practical", lecturer: "Mr. OL Phearun", room: "Room J-602" },
+        { day: "Thursday", time: "13h00 - 13h55", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Thursday", time: "14h00 - 14h55", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Thursday", time: "15h10 - 16h05", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Friday", time: "13h00 - 13h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
+        { day: "Friday", time: "14h00 - 14h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
+        { day: "Friday", time: "15h10 - 16h05", course: "Integrating Indigenous Science and STEM", type: "Practical", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
+        { day: "Friday", time: "16h10 - 17h05", course: "Integrating Indigenous Science and STEM", type: "Practical", lecturer: "Dr. MAY Raksmey", room: "Room A-109" }
+      ]
+    },
+    {
+      id: "I2-AIECS",
+      cohort: "I2",
+      name: "I2 - AI & Electronic Comm. Systems",
+      schedule: [
+        { day: "Monday", time: "9h10 - 10h05", course: "Fundamental Concept of Data Security", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-109" },
+        { day: "Monday", time: "10h10 - 11h05", course: "Fundamental Concept of Data Security", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-109" },
+        { day: "Monday", time: "13h00 - 13h55", course: "Fundamental Concept of Data Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-602" },
+        { day: "Monday", time: "14h00 - 14h55", course: "Fundamental Concept of Data Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-602" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Programming design & implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Tuesday", time: "10h10 - 11h05", course: "Programming design & implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Tuesday", time: "13h00 - 13h55", course: "Programming design & implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Tuesday", time: "14h00 - 14h55", course: "Programming design & implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Tuesday", time: "15h10 - 16h05", course: "Programming design & implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "Project and Seminart III", type: "Practical", lecturer: "Dr. SRANG Sarot", room: "Room A-401" },
+        { day: "Wednesday", time: "10h10 - 11h05", course: "Project and Seminart III", type: "Practical", lecturer: "Dr. SRANG Sarot", room: "Room A-401" },
+        { day: "Thursday", time: "7h00 - 7h55", course: "Introduction to Computer Communication and Networks", type: "Lecture", lecturer: "Mr. YOU Vanndy", room: "Room A-401" },
+        { day: "Thursday", time: "8h00 - 8h55", course: "Introduction to Computer Communication and Networks", type: "Lecture", lecturer: "Mr. YOU Vanndy", room: "Room A-401" },
+        { day: "Thursday", time: "13h00 - 13h55", course: "Introduction to Computer Communication and Networks", type: "Practical", lecturer: "Mr. YOU Vanndy", room: "Room J-602" },
+        { day: "Thursday", time: "14h00 - 14h55", course: "Introduction to Computer Communication and Networks", type: "Practical", lecturer: "Mr. YOU Vanndy", room: "Room J-602" },
+        { day: "Friday", time: "9h10 - 10h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Lab A-109" },
+        { day: "Friday", time: "10h10 - 11h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Lab A-109" },
+        { day: "Friday", time: "13h00 - 13h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
+        { day: "Friday", time: "14h00 - 14h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
+        { day: "Friday", time: "15h10 - 16h05", course: "Integrating Indigenous Science and STEM", type: "Practical", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
+        { day: "Friday", time: "16h10 - 17h05", course: "Integrating Indigenous Science and STEM", type: "Practical", lecturer: "Dr. MAY Raksmey", room: "Room A-109" }
+      ]
+    },
+    {
+      id: "I2-CMIE",
+      cohort: "I2",
+      name: "I2 - Civil & Mech. Int. Eng.",
+      schedule: [
+        { day: "Monday", time: "14h00 - 14h55", course: "Project and Seminart III", type: "Lecture", lecturer: "Dr. HENG Sounean", room: "Room A-401" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Project and Seminart III", type: "Practical", lecturer: "Dr. HENG Sounean", room: "Room A-401" },
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Programming Design & Implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Tuesday", time: "10h10 - 11h05", course: "Programming Design & Implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Tuesday", time: "13h00 - 13h55", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Tuesday", time: "14h00 - 14h55", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Tuesday", time: "15h10 - 16h05", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Thursday", time: "7h00 - 7h55", course: "Engineering Mechanics", type: "Lecture", lecturer: "Dr. LIM Sovanvichet", room: "Room A-401" },
+        { day: "Thursday", time: "8h00 - 8h55", course: "Engineering Mechanics", type: "Lecture", lecturer: "Dr. LIM Sovanvichet", room: "Room A-401" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "Engineering Mechanics", type: "Tutorial", lecturer: "Dr. LIM Sovanvichet", room: "Room A-401" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "Engineering Mechanics", type: "Tutorial", lecturer: "Dr. LIM Sovanvichet", room: "Room A-401" },
+        { day: "Thursday", time: "13h00 - 13h55", course: "Electrical Systems", type: "Lecture", lecturer: "Dr. AM Sok Chea", room: "Room A-401" },
+        { day: "Thursday", time: "14h00 - 14h55", course: "Electrical Systems", type: "Lecture", lecturer: "Dr. AM Sok Chea", room: "Room A-401" },
+        { day: "Thursday", time: "15h10 - 16h05", course: "Electrical Systems", type: "Practical", lecturer: "Dr. AM Sok Chea", room: "Room A-401" },
+        { day: "Thursday", time: "16h10 - 17h05", course: "Electrical Systems", type: "Practical", lecturer: "Dr. AM Sok Chea", room: "Room A-401" },
+        { day: "Friday", time: "13h00 - 13h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
+        { day: "Friday", time: "14h00 - 14h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
+        { day: "Friday", time: "15h10 - 16h05", course: "Integrating Indigenous Science and STEM", type: "Practical", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
+        { day: "Friday", time: "16h10 - 17h05", course: "Integrating Indigenous Science and STEM", type: "Practical", lecturer: "Dr. MAY Raksmey", room: "Room A-109" }
+      ]
+    },
+    {
+      id: "I3-SE",
+      cohort: "I3",
+      name: "I3 - Software Engineering",
+      schedule: [
+        { day: "Monday", time: "7h00 - 7h55", course: "Internet Programming", type: "Lecture", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" },
+        { day: "Monday", time: "8h00 - 8h55", course: "Internet Programming", type: "Lecture", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Networks System Design", type: "Lecture", lecturer: "Dr. KUY Movsun", room: "Room A-417" },
+        { day: "Monday", time: "16h10 - 17h05", course: "Networks System Design", type: "Lecture", lecturer: "Dr. KUY Movsun", room: "Room A-417" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "Networks System Design", type: "Practical", lecturer: "Dr. KUY Movsun", room: "Room A-420" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Networks System Design", type: "Practical", lecturer: "Dr. KUY Movsun", room: "Room A-420" },
+        { day: "Tuesday", time: "13h00 - 13h55", course: "IT Project Management", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room J-603" },
+        { day: "Tuesday", time: "14h00 - 14h55", course: "IT Project Management", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room J-603" },
+        { day: "Tuesday", time: "15h10 - 16h05", course: "Software Engineering Concepts", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-420" },
+        { day: "Tuesday", time: "16h10 - 17h05", course: "Software Engineering Concepts", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-420" },
+        { day: "Wednesday", time: "7h00 - 7h55", course: "Internet Programming", type: "Lecture", lecturer: "Mr. CHUN Thavorac", room: "Room J-602" },
+        { day: "Wednesday", time: "8h00 - 8h55", course: "Internet Programming", type: "Lecture", lecturer: "Mr. CHUN Thavorac", room: "Room J-602" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "Internet Programming", type: "Practical", lecturer: "Mr. CHUN Thavorac", room: "Room J-602" },
+        { day: "Wednesday", time: "10h10 - 11h05", course: "Internet Programming", type: "Practical", lecturer: "Mr. CHUN Thavorac", room: "Room J-602" },
+        { day: "Thursday", time: "7h00 - 7h55", course: "IT Project Management", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-420" },
+        { day: "Thursday", time: "8h00 - 8h55", course: "IT Project Management", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-420" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "Software Engineering Concepts", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-420" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "Software Engineering Concepts", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-420" },
+        { day: "Friday", time: "7h00 - 7h55", course: "Software System Architecture", type: "Lecture", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" },
+        { day: "Friday", time: "8h00 - 8h55", course: "Software System Architecture", type: "Lecture", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" },
+        { day: "Friday", time: "9h10 - 10h05", course: "Software System Architecture", type: "Practical", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" },
+        { day: "Friday", time: "10h10 - 11h05", course: "Software System Architecture", type: "Practical", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" }
+      ]
+    },
+    {
+      id: "I3-AIECS",
+      cohort: "I3",
+      name: "I3 - AI & Electronic Comm. Systems",
+      schedule: [
+        { day: "Monday", time: "9h10 - 10h05", course: "Network", type: "Lecture", lecturer: "Dr. KUY Movsun", room: "Room A-420" },
+        { day: "Monday", time: "10h10 - 11h05", course: "Network", type: "Lecture", lecturer: "Dr. KUY Movsun", room: "Room A-420" },
+        { day: "Monday", time: "13h00 - 13h55", course: "Network", type: "Practical", lecturer: "Dr. KUY Movsun", room: "Room J-601" },
+        { day: "Monday", time: "14h00 - 14h55", course: "Network", type: "Practical", lecturer: "Dr. KUY Movsun", room: "Room J-601" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Object-Oriented Programming", type: "Lecture", lecturer: "Mr. HOK TIN", room: "Room A-420" },
+        { day: "Monday", time: "16h10 - 17h05", course: "Object-Oriented Programming", type: "Lecture", lecturer: "Mr. HOK TIN", room: "Room A-420" },
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Introduction to Cryptography", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-420" },
+        { day: "Tuesday", time: "10h10 - 11h05", course: "Introduction to Cryptography", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-420" },
+        { day: "Tuesday", time: "13h00 - 13h55", course: "Operating Systems", type: "Lecture", lecturer: "Mr. YOU Vanndy", room: "Room A-420" },
+        { day: "Tuesday", time: "14h00 - 14h55", course: "Operating Systems", type: "Lecture", lecturer: "Mr. YOU Vanndy", room: "Room A-420" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "Introduction to Cryptography", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-603" },
+        { day: "Wednesday", time: "10h10 - 11h05", course: "Introduction to Cryptography", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-603" },
+        { day: "Wednesday", time: "15h10 - 16h05", course: "Object-Oriented Programming", type: "Practical", lecturer: "Mr. HOK TIN", room: "Room A-420" },
+        { day: "Wednesday", time: "16h10 - 17h05", course: "Object-Oriented Programming", type: "Practical", lecturer: "Mr. HOK TIN", room: "Room A-420" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "Operating Systems", type: "Practical", lecturer: "Mr. YOU Vanndy", room: "Room J-603" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "Operating Systems", type: "Practical", lecturer: "Mr. YOU Vanndy", room: "Room J-603" },
+        { day: "Friday", time: "10h10 - 11h05", course: "Capstone Project I", type: "Lecture", lecturer: "Mr. ANG Ousa", room: "Room A-420" },
+        { day: "Friday", time: "13h00 - 13h55", course: "Capstone Project I", type: "Practical", lecturer: "Mr. ANG Ousa", room: "Room A-420" },
+        { day: "Friday", time: "14h00 - 14h55", course: "Capstone Project I", type: "Practical", lecturer: "Mr. ANG Ousa", room: "Room A-420" }
+      ]
+    },
+    {
+      id: "I4-SE",
+      cohort: "I4",
+      name: "I4 - Software Engineering",
+      schedule: [
+        { day: "Monday", time: "7h00 - 7h55", course: "Networks System Administration", type: "Practical", lecturer: "Dr. KUY Movsun", room: "Room A-417" },
+        { day: "Monday", time: "8h00 - 8h55", course: "Networks System Administration", type: "Practical", lecturer: "Dr. KUY Movsun", room: "Room A-417" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "Distributed Systems", type: "Lecture", lecturer: "Mr. KHEM Thay", room: "Room A-417" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Distributed Systems", type: "Lecture", lecturer: "Mr. KHEM Thay", room: "Room A-417" },
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Networks System Administration", type: "Lecture", lecturer: "Dr. KUY Movsun", room: "Room A-420" },
+        { day: "Tuesday", time: "10h10 - 11h05", course: "Networks System Administration", type: "Lecture", lecturer: "Dr. KUY Movsun", room: "Room A-420" },
+        { day: "Wednesday", time: "7h00 - 7h55", course: "Data Security and Privacy", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-417" },
+        { day: "Wednesday", time: "8h00 - 8h55", course: "Data Security and Privacy", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-417" },
+        { day: "Wednesday", time: "15h10 - 16h05", course: "Data Security and Privacy", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-601" },
+        { day: "Wednesday", time: "16h10 - 17h05", course: "Data Security and Privacy", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-601" },
+        { day: "Thursday", time: "15h10 - 16h05", course: "Game Theory", type: "Lecture", lecturer: "Mr. SOK Kimheng", room: "Room A-420" },
+        { day: "Thursday", time: "16h10 - 17h05", course: "Game Theory", type: "Lecture", lecturer: "Mr. SOK Kimheng", room: "Room A-420" },
+        { day: "Friday", time: "7h00 - 7h55", course: "Enterprise Resource Planning", type: "Lecture", lecturer: "Ms. Choeun Chakrya", room: "Room A-417" },
+        { day: "Friday", time: "8h00 - 8h55", course: "Enterprise Resource Planning", type: "Lecture", lecturer: "Ms. Choeun Chakrya", room: "Room A-417" },
+        { day: "Friday", time: "9h10 - 10h05", course: "Enterprise Resource Planning", type: "Practical", lecturer: "Ms. Choeun Chakrya", room: "Room A-417" },
+        { day: "Friday", time: "10h10 - 11h05", course: "Enterprise Resource Planning", type: "Practical", lecturer: "Ms. Choeun Chakrya", room: "Room A-417" },
+        { day: "Friday", time: "13h00 - 13h55", course: "Distributed Systems", type: "Practical", lecturer: "Mr. KHEM Thay", room: "Room J-601" },
+        { day: "Friday", time: "14h00 - 14h55", course: "Distributed Systems", type: "Practical", lecturer: "Mr. KHEM Thay", room: "Room J-601" },
+        { day: "Friday", time: "15h10 - 16h05", course: "Game Theory", type: "Practical", lecturer: "Mr. SOK Kimheng", room: "Room J-601" },
+        { day: "Friday", time: "16h10 - 17h05", course: "Game Theory", type: "Practical", lecturer: "Mr. SOK Kimheng", room: "Room J-601" }
+      ]
+    },
+    {
+      id: "I4-AIECS",
+      cohort: "I4",
+      name: "I4 - AI & Electronic Comm. Systems",
+      schedule: [
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Ethical Hacking and Penetration Testing", type: "Lecture", lecturer: "Mr. Roosveltte Taing", room: "Room A-417" },
+        { day: "Tuesday", time: "10h10 - 11h05", course: "Ethical Hacking and Penetration Testing", type: "Lecture", lecturer: "Mr. Roosveltte Taing", room: "Room A-417" },
+        { day: "Tuesday", time: "13h00 - 13h55", course: "Machine Learning", type: "Lecture", lecturer: "Mr. PHALLY Rathavann", room: "Room A-417" },
+        { day: "Tuesday", time: "14h00 - 14h55", course: "Machine Learning", type: "Lecture", lecturer: "Mr. PHALLY Rathavann", room: "Room A-417" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "Ethical Hacking and Penetration Testing", type: "Practical", lecturer: "Mr. Roosveltte Taing", room: "Room J-609" },
+        { day: "Wednesday", time: "10h10 - 11h05", course: "Ethical Hacking and Penetration Testing", type: "Practical", lecturer: "Mr. Roosveltte Taing", room: "Room J-609" },
+        { day: "Thursday", time: "7h00 - 7h55", course: "Digital Signal Processing", type: "Lecture", lecturer: "Dr. PEC Rothna", room: "Room A-417" },
+        { day: "Thursday", time: "8h00 - 8h55", course: "Digital Signal Processing", type: "Lecture", lecturer: "Dr. PEC Rothna", room: "Room A-417" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "System and Network Security", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-417" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "System and Network Security", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-417" },
+        { day: "Thursday", time: "14h00 - 14h55", course: "Capstone Project III", type: "Lecture", lecturer: "Mr. ANG Ousa", room: "Room A-417" },
+        { day: "Thursday", time: "15h10 - 16h05", course: "Capstone Project III", type: "Practical", lecturer: "Mr. ANG Ousa", room: "Room A-417" },
+        { day: "Thursday", time: "16h10 - 17h05", course: "Capstone Project III", type: "Practical", lecturer: "Mr. ANG Ousa", room: "Room A-417" },
+        { day: "Friday", time: "7h00 - 7h55", course: "Digital Signal Processing", type: "Practical", lecturer: "Dr. PEC Rothna", room: "Room J-603" },
+        { day: "Friday", time: "8h00 - 8h55", course: "Digital Signal Processing", type: "Practical", lecturer: "Dr. PEC Rothna", room: "Room J-603" },
+        { day: "Friday", time: "9h10 - 10h05", course: "System and Network Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-603" },
+        { day: "Friday", time: "10h10 - 11h05", course: "System and Network Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-603" },
+        { day: "Friday", time: "13h00 - 13h55", course: "Machine Learning", type: "Practical", lecturer: "Mr. PHALLY Rathavann", room: "Room J-603" },
+        { day: "Friday", time: "14h00 - 14h55", course: "Machine Learning", type: "Practical", lecturer: "Mr. PHALLY Rathavann", room: "Room J-603" }
+      ]
+    }
+  ]
+};
