@@ -10,6 +10,12 @@ import { ClubsView } from './components/ClubsView';
 import { SessionDetailModal } from './components/SessionDetailModal';
 import { FreeStudyRoomModal } from './components/FreeStudyRoomModal';
 import { MakeupClassBookingModal, MakeupClassBooking } from './components/MakeupClassBookingModal';
+import { 
+  subscribeToMakeupBookings, 
+  saveMakeupBooking, 
+  deleteMakeupBooking, 
+  testFirestoreConnection 
+} from './lib/firebase';
 import { ScheduleSession, ALL_SESSIONS, SCHEDULE_DATA } from './data/scheduleData';
 import { Search, X, GraduationCap, Check, Users } from 'lucide-react';
 
@@ -67,7 +73,7 @@ export default function App() {
     }
   };
 
-  // Booked Make-up Sessions state (persisted in localStorage)
+  // Booked Make-up Sessions state (synced with Firestore + localStorage cache)
   const [makeupBookings, setMakeupBookings] = useState<MakeupClassBooking[]>(() => {
     try {
       const stored = localStorage.getItem('itc_makeup_bookings');
@@ -77,9 +83,27 @@ export default function App() {
     }
   });
 
-  const handleSaveMakeupBooking = (booking: MakeupClassBooking) => {
+  // Subscribe to real-time updates from Firebase Firestore across all devices
+  useEffect(() => {
+    testFirestoreConnection();
+    const unsubscribe = subscribeToMakeupBookings((remoteBookings) => {
+      setMakeupBookings(remoteBookings);
+      try {
+        localStorage.setItem('itc_makeup_bookings', JSON.stringify(remoteBookings));
+      } catch {
+        // ignore
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  const handleSaveMakeupBooking = async (booking: MakeupClassBooking) => {
+    // Optimistic local update
     setMakeupBookings(prev => {
-      const updated = [booking, ...prev];
+      const updated = [booking, ...prev.filter(b => b.id !== booking.id)];
       try {
         localStorage.setItem('itc_makeup_bookings', JSON.stringify(updated));
       } catch {
@@ -87,6 +111,33 @@ export default function App() {
       }
       return updated;
     });
+
+    // Sync to cloud Firestore
+    try {
+      await saveMakeupBooking(booking);
+    } catch (err) {
+      console.warn('Booking saved in local cache, cloud sync deferred:', err);
+    }
+  };
+
+  const handleDeleteMakeupBooking = async (id: string) => {
+    // Optimistic local update
+    setMakeupBookings(prev => {
+      const updated = prev.filter(b => b.id !== id);
+      try {
+        localStorage.setItem('itc_makeup_bookings', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    // Delete from cloud Firestore
+    try {
+      await deleteMakeupBooking(id);
+    } catch (err) {
+      console.warn('Booking removed locally, cloud sync deferred:', err);
+    }
   };
 
   const [activeMode, setActiveMode] = useState<'matrix' | 'lecturer' | 'room' | 'agenda' | 'clubs'>('matrix');
@@ -161,6 +212,7 @@ export default function App() {
             setActiveMode('room');
             setCurrentView('schedule');
           }}
+          makeupBookings={makeupBookings}
         />
       </>
     );
@@ -284,6 +336,7 @@ export default function App() {
             setActiveMode('room');
           }
         }}
+        makeupBookings={makeupBookings}
       />
 
       {/* Make-up Class Room Booking Modal */}
@@ -291,7 +344,9 @@ export default function App() {
         isOpen={isBookingModalOpen}
         onClose={() => setIsBookingModalOpen(false)}
         onSaveBooking={handleSaveMakeupBooking}
+        onDeleteBooking={handleDeleteMakeupBooking}
         activeMonitorGen={activeMonitorGen}
+        existingBookings={makeupBookings}
       />
 
       {/* Student Change Class Modal (if miss-clicked) */}

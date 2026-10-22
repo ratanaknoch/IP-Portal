@@ -9,71 +9,71 @@ export function QuickStats() {
 
   return (
     <div className="no-print grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-3">
-        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+      <div className="bg-slate-900 border border-slate-800 rounded-md p-3 shadow-xs">
+        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-400">
           Cohorts
         </span>
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+          <span className="text-xl font-bold font-mono tabular-nums text-slate-100">
             {cohortsCount}
           </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-slate-400">
             I2 · I3 · I4
           </span>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-3">
-        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+      <div className="bg-slate-900 border border-slate-800 rounded-md p-3 shadow-xs">
+        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-400">
           Total Groups
         </span>
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+          <span className="text-xl font-bold font-mono tabular-nums text-slate-100">
             {totalGroups}
           </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-slate-400">
             SE · AIECS · CMIE
           </span>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-3">
-        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+      <div className="bg-slate-900 border border-slate-800 rounded-md p-3 shadow-xs">
+        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-400">
           Faculty Lecturers
         </span>
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+          <span className="text-xl font-bold font-mono tabular-nums text-slate-100">
             {lecturersCount}
           </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-slate-400">
             Instructors
           </span>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-3">
-        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+      <div className="bg-slate-900 border border-slate-800 rounded-md p-3 shadow-xs">
+        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-400">
           Classrooms & Labs
         </span>
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+          <span className="text-xl font-bold font-mono tabular-nums text-slate-100">
             {roomsCount}
           </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-slate-400">
             Buildings A & J
           </span>
         </div>
       </div>
 
-      <div className="col-span-2 sm:col-span-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md p-3">
-        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+      <div className="col-span-2 sm:col-span-1 bg-slate-900 border border-slate-800 rounded-md p-3 shadow-xs">
+        <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-400">
           Weekly Sessions
         </span>
         <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100">
+          <span className="text-xl font-bold font-mono tabular-nums text-slate-100">
             {totalSessions}
           </span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-xs text-slate-400">
             Mon to Sat
           </span>
         </div>

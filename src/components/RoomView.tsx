@@ -274,11 +274,20 @@ export function RoomView({
         <div className="space-y-3">
           
           <div className="bg-slate-900 border border-slate-800 rounded-md overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse text-left">
+            {/* Mobile horizontal scroll hint */}
+            <div className="no-print sm:hidden flex items-center justify-between px-3 py-2 bg-slate-850 border-b border-slate-800 text-[11px] text-slate-300">
+              <span className="flex items-center gap-1.5 font-medium">
+                <span>Scroll horizontally for all days</span>
+                <span className="text-sky-400 font-bold">→</span>
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono">Mon–Sat</span>
+            </div>
+
+            <div className="overflow-x-auto w-full overscroll-x-contain">
+              <table className="w-full min-w-[760px] md:min-w-full border-collapse text-left">
                 <thead>
-                  <tr className="bg-slate-800/90 border-b border-slate-700">
-                    <th className="p-2.5 text-xs font-semibold uppercase tracking-wider text-slate-400 w-28 text-center shrink-0 border-r border-slate-700">
+                  <tr className="bg-slate-800/95 border-b border-slate-700">
+                    <th className="sticky left-0 z-20 bg-slate-800 p-2.5 text-xs font-semibold uppercase tracking-wider text-slate-300 w-28 text-center shrink-0 border-r border-slate-700 shadow-[2px_0_6px_rgba(0,0,0,0.4)]">
                       Time Slot
                     </th>
                     {days
@@ -289,13 +298,13 @@ export function RoomView({
                           <th
                             key={day}
                             className={`p-2.5 text-xs font-semibold text-center border-r border-slate-700 last:border-r-0 ${
-                              isToday ? 'bg-slate-750 text-slate-100' : 'text-slate-300'
+                              isToday ? 'bg-slate-700 text-slate-100 font-bold' : 'text-slate-300'
                             }`}
                           >
                             <div className="flex items-center justify-center gap-1.5">
                               <span>{day}</span>
                               {isToday && (
-                                <span className="text-[10px] uppercase font-bold text-emerald-400">
+                                <span className="text-[10px] uppercase font-bold text-emerald-400 px-1 py-0.2 rounded bg-emerald-950/80 border border-emerald-800">
                                   Today
                                 </span>
                               )}
@@ -316,10 +325,10 @@ export function RoomView({
                           isAfternoonSplit ? 'border-t-2 border-slate-700' : ''
                         }`}
                       >
-                        {/* Time slot column */}
-                        <td className="p-2.5 font-mono tabular-nums text-xs text-slate-400 font-medium bg-slate-950/60 text-center border-r border-slate-800 whitespace-nowrap">
+                        {/* Time slot sticky column */}
+                        <td className="sticky left-0 z-10 p-2.5 font-mono tabular-nums text-xs text-slate-300 font-medium bg-slate-900 text-center border-r border-slate-800 whitespace-nowrap shadow-[2px_0_6px_rgba(0,0,0,0.35)]">
                           <div className="font-bold text-slate-200">{slot}</div>
-                          <div className="text-[10px] text-slate-500 font-sans">
+                          <div className="text-[10px] text-slate-400 font-sans">
                             {sIdx < 4 ? `Morning Slot ${sIdx + 1}` : `Afternoon Slot ${sIdx - 3}`}
                           </div>
                         </td>
@@ -593,7 +602,7 @@ export function RoomView({
                         {makeupSession.course}
                       </div>
                       <div className="text-[11px] text-slate-300 mt-1">
-                        {makeupSession.groupId} · Booked by {makeupSession.bookedBy}
+                        {makeupSession.groupId} · Booked by {makeupSession.bookedBy}{makeupSession.date ? ` (${makeupSession.date})` : ''}
                       </div>
                     </div>
                   </div>

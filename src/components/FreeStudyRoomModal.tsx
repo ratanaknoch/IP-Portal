@@ -20,17 +20,20 @@ import {
   getCurrentOrClosestSlot, 
   parseSlotMinutes 
 } from '../data/scheduleData';
+import { MakeupClassBooking } from './MakeupClassBookingModal';
 
 interface FreeStudyRoomModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectRoom?: (roomName: string) => void;
+  makeupBookings?: MakeupClassBooking[];
 }
 
 export function FreeStudyRoomModal({
   isOpen,
   onClose,
-  onSelectRoom
+  onSelectRoom,
+  makeupBookings = []
 }: FreeStudyRoomModalProps) {
   const cambodiaTime = getCambodiaTime();
   
@@ -64,8 +67,11 @@ export function FreeStudyRoomModal({
       const currentSession = ALL_SESSIONS.find(
         s => s.room.trim() === room && s.day === selectedDay && s.time === selectedSlot
       );
+      const currentMakeup = makeupBookings.find(
+        m => m.room.trim() === room && m.day === selectedDay && m.time === selectedSlot
+      );
 
-      const isFree = !currentSession;
+      const isFree = !currentSession && !currentMakeup;
 
       // Calculate how long it remains free if free
       let freeUntil: string | null = null;
@@ -77,7 +83,10 @@ export function FreeStudyRoomModal({
           const hasClass = ALL_SESSIONS.some(
             s => s.room.trim() === room && s.day === selectedDay && s.time === slotToCheck
           );
-          if (hasClass) {
+          const hasMakeup = makeupBookings.some(
+            m => m.room.trim() === room && m.day === selectedDay && m.time === slotToCheck
+          );
+          if (hasClass || hasMakeup) {
             freeUntil = slotToCheck.split('-')[0].trim();
             break;
           } else {
@@ -94,13 +103,24 @@ export function FreeStudyRoomModal({
         building,
         isBuildingA,
         isFree,
-        currentSession,
+        currentSession: currentSession || (currentMakeup ? {
+          day: currentMakeup.day,
+          time: currentMakeup.time,
+          course: `${currentMakeup.course} [Make-up]`,
+          type: 'Lecture' as const,
+          lecturer: `Booked by ${currentMakeup.bookedBy}`,
+          room: currentMakeup.room,
+          groupId: currentMakeup.groupId,
+          groupName: currentMakeup.groupId,
+          cohort: currentMakeup.generation
+        } : undefined),
         freeUntil,
         consecutiveFreeSlots,
-        totalDaySessions: ALL_SESSIONS.filter(s => s.room.trim() === room && s.day === selectedDay).length
+        totalDaySessions: ALL_SESSIONS.filter(s => s.room.trim() === room && s.day === selectedDay).length +
+          makeupBookings.filter(m => m.room.trim() === room && m.day === selectedDay).length
       };
     });
-  }, [selectedDay, selectedSlot]);
+  }, [selectedDay, selectedSlot, makeupBookings]);
 
   // Filtered rooms based on user preferences
   const filteredRooms = roomStatuses.filter(item => {

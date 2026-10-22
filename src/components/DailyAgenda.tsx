@@ -41,7 +41,7 @@ export function DailyAgenda({
       time: m.time,
       course: `${m.course} [Make-up]`,
       type: 'Lecture' as const,
-      lecturer: `Reserved by ${m.bookedBy}`,
+      lecturer: `Reserved by ${m.bookedBy}${m.date ? ` (${m.date})` : ''}`,
       room: m.room,
       groupId: m.groupId,
       groupName: m.groupId,

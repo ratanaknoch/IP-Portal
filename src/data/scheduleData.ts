@@ -345,25 +345,25 @@ export function getSessionTypeStyle(type: SessionType): {
   switch (type) {
     case 'Lecture':
       return {
-        badge: 'bg-indigo-100 text-indigo-900 border border-indigo-200 dark:bg-indigo-950/70 dark:text-indigo-200 dark:border-indigo-800',
-        card: 'bg-indigo-50/70 hover:bg-indigo-50/90 text-indigo-950 border border-indigo-200/90 dark:bg-indigo-950/30 dark:hover:bg-indigo-950/50 dark:text-indigo-100 dark:border-indigo-800/80',
-        border: 'border-indigo-400 dark:border-indigo-600',
-        indicator: 'bg-indigo-600 dark:bg-indigo-400'
+        badge: 'bg-indigo-950/80 text-indigo-200 border border-indigo-800',
+        card: 'bg-indigo-950/40 hover:bg-indigo-950/60 text-indigo-100 border border-indigo-800/80',
+        border: 'border-indigo-600',
+        indicator: 'bg-indigo-400'
       };
     case 'Practical':
     case 'TP':
       return {
-        badge: 'bg-emerald-100 text-emerald-900 border border-emerald-200 dark:bg-emerald-950/70 dark:text-emerald-200 dark:border-emerald-800',
-        card: 'bg-emerald-50/70 hover:bg-emerald-50/90 text-emerald-950 border border-emerald-200/90 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 dark:text-emerald-100 dark:border-emerald-800/80',
-        border: 'border-emerald-400 dark:border-emerald-600',
-        indicator: 'bg-emerald-600 dark:bg-emerald-400'
+        badge: 'bg-emerald-950/80 text-emerald-200 border border-emerald-800',
+        card: 'bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-100 border border-emerald-800/80',
+        border: 'border-emerald-600',
+        indicator: 'bg-emerald-400'
       };
     case 'Tutorial':
       return {
-        badge: 'bg-amber-100 text-amber-900 border border-amber-200 dark:bg-amber-950/70 dark:text-amber-200 dark:border-amber-800',
-        card: 'bg-amber-50/70 hover:bg-amber-50/90 text-amber-950 border border-amber-200/90 dark:bg-amber-950/30 dark:hover:bg-amber-950/50 dark:text-amber-100 dark:border-amber-800/80',
-        border: 'border-amber-400 dark:border-amber-600',
-        indicator: 'bg-amber-600 dark:bg-amber-400'
+        badge: 'bg-amber-950/80 text-amber-200 border border-amber-800',
+        card: 'bg-amber-950/40 hover:bg-amber-950/60 text-amber-100 border border-amber-800/80',
+        border: 'border-amber-600',
+        indicator: 'bg-amber-400'
       };
   }
 }

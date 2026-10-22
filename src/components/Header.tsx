@@ -292,22 +292,23 @@ export function Header({
         </div>
 
         {/* Mobile Navigation bar */}
-        <div className="no-print md:hidden flex items-center justify-between py-2 border-t border-slate-800 overflow-x-auto gap-2">
+        <div className="no-print md:hidden flex items-center py-2 border-t border-slate-800 overflow-x-auto gap-1.5 scrollbar-none">
           {onReturnHome && (
             <button
               onClick={onReturnHome}
-              className="px-2.5 py-1 text-xs font-semibold rounded bg-slate-800 text-slate-200 whitespace-nowrap flex items-center gap-1"
+              className="px-2.5 py-1.5 text-xs font-semibold rounded bg-slate-800 text-slate-200 hover:text-white whitespace-nowrap flex items-center gap-1 shrink-0"
             >
-              <ArrowLeft className="w-3 h-3" /> Home
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Home</span>
             </button>
           )}
 
           <button
             onClick={() => onSelectMode('matrix')}
-            className={`px-2.5 py-1 text-xs font-medium rounded whitespace-nowrap ${
+            className={`px-3 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 transition-colors ${
               activeMode === 'matrix'
-                ? 'bg-slate-100 text-slate-900 font-semibold'
-                : 'text-slate-400'
+                ? 'bg-slate-100 text-slate-900 font-bold'
+                : 'text-slate-400 hover:text-slate-200 bg-slate-850/60'
             }`}
           >
             Matrix
@@ -317,20 +318,20 @@ export function Header({
             <>
               <button
                 onClick={() => onSelectMode('lecturer')}
-                className={`px-2.5 py-1 text-xs font-medium rounded whitespace-nowrap ${
+                className={`px-3 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 transition-colors ${
                   activeMode === 'lecturer'
-                    ? 'bg-slate-100 text-slate-900 font-semibold'
-                    : 'text-slate-400'
+                    ? 'bg-slate-100 text-slate-900 font-bold'
+                    : 'text-slate-400 hover:text-slate-200 bg-slate-850/60'
                 }`}
               >
                 Lecturers
               </button>
               <button
                 onClick={() => onSelectMode('room')}
-                className={`px-2.5 py-1 text-xs font-medium rounded whitespace-nowrap ${
+                className={`px-3 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 transition-colors ${
                   activeMode === 'room'
-                    ? 'bg-slate-100 text-slate-900 font-semibold'
-                    : 'text-slate-400'
+                    ? 'bg-slate-100 text-slate-900 font-bold'
+                    : 'text-slate-400 hover:text-slate-200 bg-slate-850/60'
                 }`}
               >
                 Rooms
@@ -340,10 +341,10 @@ export function Header({
 
           <button
             onClick={() => onSelectMode('agenda')}
-            className={`px-2.5 py-1 text-xs font-medium rounded whitespace-nowrap ${
+            className={`px-3 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 transition-colors ${
               activeMode === 'agenda'
-                ? 'bg-slate-100 text-slate-900 font-semibold'
-                : 'text-slate-400'
+                ? 'bg-slate-100 text-slate-900 font-bold'
+                : 'text-slate-400 hover:text-slate-200 bg-slate-850/60'
             }`}
           >
             Agenda
@@ -352,7 +353,7 @@ export function Header({
           {isStudent && (
             <button
               onClick={() => (onOpenClubModal ? onOpenClubModal() : onSelectMode('clubs'))}
-              className="px-2.5 py-1 text-xs font-medium rounded whitespace-nowrap text-slate-400 flex items-center gap-1"
+              className="px-2.5 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 text-slate-400 bg-slate-850/60 flex items-center gap-1"
             >
               <span>Clubs</span>
               <span className="text-[9px] px-1 rounded bg-amber-950 text-amber-300 border border-amber-800">
@@ -361,12 +362,36 @@ export function Header({
             </button>
           )}
 
+          {/* Student Class Switcher on Mobile */}
+          {isStudent && onChangeClass && activeGroup && (
+            <button
+              onClick={onChangeClass}
+              className="px-2.5 py-1.5 text-xs font-medium rounded bg-sky-950/80 border border-sky-800 text-sky-300 whitespace-nowrap flex items-center gap-1 shrink-0"
+              title="Change your class"
+            >
+              <span className="text-[10px] text-slate-400">Class:</span>
+              <span className="font-mono font-bold text-sky-300">{activeGroup.id}</span>
+            </button>
+          )}
+
+          {/* Monitor Make-up Booking trigger on Mobile */}
+          {!isStudent && onOpenBookingModal && (
+            <button
+              onClick={onOpenBookingModal}
+              className="px-2.5 py-1.5 text-xs font-medium rounded bg-emerald-950 border border-emerald-700 text-emerald-300 whitespace-nowrap flex items-center gap-1 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Book</span>
+            </button>
+          )}
+
           {onOpenFreeRooms && (
             <button
               onClick={onOpenFreeRooms}
-              className="px-2 py-1 text-xs font-semibold rounded bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap flex items-center gap-1"
+              className="px-2.5 py-1.5 text-xs font-medium rounded bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap flex items-center gap-1 shrink-0 hover:text-white"
             >
-              <Building2 className="w-3 h-3" /> Rooms
+              <Building2 className="w-3.5 h-3.5 text-sky-400" />
+              <span>Rooms</span>
             </button>
           )}
         </div>
