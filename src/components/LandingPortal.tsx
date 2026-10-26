@@ -41,6 +41,7 @@ interface LandingPortalProps {
   onLogout: () => void;
   onUpgradeToMonitor?: (password: string) => Promise<boolean>;
   onOpenAcademicStatus?: () => void;
+  onOpenReleaseNotes: () => void;
 }
 
 export function LandingPortal({
@@ -58,7 +59,8 @@ export function LandingPortal({
   onOpenAdminDashboard,
   onLogout,
   onUpgradeToMonitor,
-  onOpenAcademicStatus
+  onOpenAcademicStatus,
+  onOpenReleaseNotes
 }: LandingPortalProps) {
   const [showClubModal, setShowClubModal] = useState(false);
   const [showMonitorAuthModal, setShowMonitorAuthModal] = useState(false);
@@ -514,7 +516,14 @@ export function LandingPortal({
             Student-made portal for learning and documentation purposes · Not an official institution site
           </p>
         </div>
-        <div className="flex items-center gap-4 text-[11px] text-slate-400 shrink-0">
+        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-4 text-[11px] text-slate-400 shrink-0">
+          <button
+            onClick={onOpenReleaseNotes}
+            className="hover:text-slate-200 transition-colors cursor-pointer"
+          >
+            Release Notes (v1.0.0)
+          </button>
+          <span>·</span>
           <a
             href="https://discord.gg/QH3rwPbwRm"
             target="_blank"

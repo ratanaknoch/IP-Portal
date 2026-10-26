@@ -17,6 +17,7 @@ import { NotificationInboxModal } from './components/NotificationInboxModal';
 import { AcademicStatusModal } from './components/AcademicStatusModal';
 import { FirstVisitLoader } from './components/FirstVisitLoader';
 import { LogoutOverlay } from './components/LogoutOverlay';
+import { ReleaseNotesView } from './components/ReleaseNotesView';
 import { 
   subscribeToMakeupBookings, 
   saveMakeupBooking, 
@@ -58,8 +59,8 @@ export default function App() {
     }
   };
 
-  // Top level views: 'landing' or 'schedule'
-  const [currentView, setCurrentView] = useState<'landing' | 'schedule'>('landing');
+  // Top level views: 'landing' | 'schedule' | 'release-notes'
+  const [currentView, setCurrentView] = useState<'landing' | 'schedule' | 'release-notes'>('landing');
   const [portalRole, setPortalRole] = useState<'student' | 'class-monitor'>('student');
   const [activeMonitorGen, setActiveMonitorGen] = useState<string>('Bigboss@67');
 
@@ -210,6 +211,11 @@ export default function App() {
       setCurrentView('schedule');
     } else if (cleanPath === '/login' || cleanPath === '/auth') {
       setIsAuthModalOpen(true);
+    } else if (cleanPath === '/release-notes' || cleanPath === '/changelog') {
+      setCurrentView('release-notes');
+      setIsFreeRoomsOpen(false);
+      setIsBookingModalOpen(false);
+      setIsAuthModalOpen(false);
     }
   }, []);
 
@@ -650,6 +656,10 @@ export default function App() {
               setShowClassChangeModal(true);
             }
           }}
+          onOpenReleaseNotes={() => {
+            setCurrentView('release-notes');
+            navigateTo('/release-notes');
+          }}
         />
 
         {/* Free Study Room Modal accessible directly from Landing */}
@@ -715,6 +725,18 @@ export default function App() {
           />
         )}
       </>
+    );
+  }
+
+  // Dedicated Release Notes Page
+  if (currentView === 'release-notes') {
+    return (
+      <ReleaseNotesView
+        onBack={() => {
+          setCurrentView('landing');
+          navigateTo('/');
+        }}
+      />
     );
   }
 
@@ -1074,7 +1096,17 @@ export default function App() {
               Disclaimer: This is not an official website from the school, but a student-made project for learning and documentation purposes.
             </p>
           </div>
-          <div className="flex items-center gap-4 text-xs">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-4 text-xs">
+            <button
+              onClick={() => {
+                setCurrentView('release-notes');
+                navigateTo('/release-notes');
+              }}
+              className="hover:text-slate-200 transition-colors cursor-pointer"
+            >
+              Release Notes (v1.0.0)
+            </button>
+            <span>·</span>
             <a
               href="https://discord.gg/QH3rwPbwRm"
               target="_blank"
