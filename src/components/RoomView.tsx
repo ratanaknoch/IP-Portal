@@ -1,6 +1,8 @@
 import { useState, useMemo } from 'react';
 import { 
   ALL_ROOMS, 
+  FREE_STUDY_ROOMS,
+  BOOKABLE_ROOMS,
   ALL_SESSIONS, 
   ScheduleSession, 
   SCHEDULE_DATA,
@@ -63,7 +65,7 @@ export function RoomView({
   const [inspectorSlot, setInspectorSlot] = useState<string>(defaultSlot);
   const [inspectorTimeQuery, setInspectorTimeQuery] = useState<string>('');
 
-  // Shorten room name for high-density matrix display (e.g. "Room A-109" -> "A-109", "Lab A-109" -> "Lab A-109")
+  // Shorten room name for high-density matrix display (e.g. "Room A-109" -> "A-109")
   const formatRoomLabel = (room: string, format: 'short' | 'full') => {
     if (format === 'full') return room;
     return room.replace(/^Room\s+/i, '');
@@ -76,7 +78,7 @@ export function RoomView({
       .map(s => s.room.trim());
     
     const makeups = makeupBookings
-      .filter(m => m.day === day && m.time === slot)
+      .filter(m => m.day === day && (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot))))
       .map(m => m.room.trim());
 
     return Array.from(new Set([...scheduled, ...makeups]));
@@ -86,7 +88,7 @@ export function RoomView({
   const getAvailableRoomsForSlot = (day: string, slot: string) => {
     const occupiedSet = new Set(getOccupiedRoomsForSlot(day, slot));
 
-    return ALL_ROOMS.filter(r => {
+    return FREE_STUDY_ROOMS.filter(r => {
       const trimmed = r.trim();
       const isOccupied = occupiedSet.has(trimmed);
       if (isOccupied) return false;
@@ -118,7 +120,7 @@ export function RoomView({
     <div className="space-y-4">
       
       {/* Top Navigation & View Switcher */}
-      <div className="no-print bg-slate-900 border border-slate-800 rounded-md p-4 space-y-4 shadow-xs">
+      <div className="no-print bg-slate-900 border border-slate-800 rounded-md p-2.5 sm:p-3 space-y-2.5 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
           {/* Sub-view switcher */}
@@ -161,7 +163,7 @@ export function RoomView({
 
             <div className="text-xs text-slate-400 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span>10 Venues (6 in Bldg A · 4 in Bldg J)</span>
+              <span>{FREE_STUDY_ROOMS.length} Venues ({FREE_STUDY_ROOMS.filter(r => r.includes('A-')).length} in Bldg A · {FREE_STUDY_ROOMS.filter(r => r.includes('J-')).length} in Bldg J)</span>
             </div>
           </div>
 
@@ -230,12 +232,12 @@ export function RoomView({
                 >
                   <option value="ALL">None (Show All Available)</option>
                   <optgroup label="Building A (Confirmed IP Classrooms)">
-                    {ALL_ROOMS.filter(r => r.includes('A-')).map(r => (
+                    {FREE_STUDY_ROOMS.filter(r => r.includes('A-')).map(r => (
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </optgroup>
                   <optgroup label="Building J (Shared Computer Labs)">
-                    {ALL_ROOMS.filter(r => r.includes('J-')).map(r => (
+                    {FREE_STUDY_ROOMS.filter(r => r.includes('J-')).map(r => (
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </optgroup>
@@ -338,12 +340,17 @@ export function RoomView({
                           .filter(d => dayFilter === 'ALL' || dayFilter === d)
                           .map((day) => {
                             const availableRooms = getAvailableRoomsForSlot(day, slot);
+                            const slotMakeupBookings = makeupBookings.filter(m => 
+                              m.day === day && (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot)))
+                            );
                             const isToday = cambodiaTime.dayName === day;
                             const liveStatus = getSlotLiveStatus(slot, day, cambodiaTime);
 
                             const totalMatchingRooms = buildingFilter === 'all' 
-                              ? ALL_ROOMS.length 
-                              : buildingFilter === 'A' ? 6 : 4;
+                              ? FREE_STUDY_ROOMS.length 
+                              : buildingFilter === 'A' 
+                              ? FREE_STUDY_ROOMS.filter(r => r.includes('A-')).length 
+                              : FREE_STUDY_ROOMS.filter(r => r.includes('J-')).length;
 
                             return (
                               <td
@@ -376,19 +383,17 @@ export function RoomView({
                                   </div>
 
                                   {/* List of Available Rooms at this hour */}
-                                  {availableRooms.length === 0 ? (
+                                  {availableRooms.length === 0 && slotMakeupBookings.length === 0 ? (
                                     <div className="py-2 text-center text-slate-500 text-[10px] italic">
                                       All venues occupied at this hour.
                                     </div>
                                   ) : (
                                     <div className="flex flex-wrap gap-1">
+                                      {/* Available free rooms */}
                                       {availableRooms.map((room) => {
                                         const isSpotlighted = spotlightRoom !== 'ALL' && spotlightRoom === room;
                                         const isBuildingJ = room.includes('J-');
 
-                                        // Crucial user requirement:
-                                        // Building A rooms are confirmed by IP -> colored GREEN!
-                                        // Building J rooms are shared and unconfirmed -> colored GREY/neutral!
                                         return (
                                           <button
                                             key={room}
@@ -410,6 +415,19 @@ export function RoomView({
                                           </button>
                                         );
                                       })}
+
+                                      {/* Booked Rooms in RED */}
+                                      {slotMakeupBookings.map((makeup) => (
+                                        <span
+                                          key={makeup.id}
+                                          title={`Booked Room: ${makeup.room} for ${makeup.course} by ${makeup.bookedBy}${makeup.date ? ` (${makeup.date})` : ''}`}
+                                          className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-rose-950/90 text-rose-300 border border-rose-600 flex items-center gap-1 shadow-xs"
+                                        >
+                                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse shrink-0"></span>
+                                          <span className="line-through">{formatRoomLabel(makeup.room, roomFormat)}</span>
+                                          <span className="text-[8px] text-rose-100 uppercase font-sans font-extrabold bg-rose-800 px-1 rounded">Booked</span>
+                                        </span>
+                                      ))}
                                     </div>
                                   )}
 
@@ -432,7 +450,7 @@ export function RoomView({
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-emerald-950 border border-emerald-500"></span>
-                  <span className="text-emerald-300 font-medium">Building A (Confirmed Available: A-109, A-401, A-402, A-417, A-420, Lab A-109)</span>
+                  <span className="text-emerald-300 font-medium">Building A (Confirmed Available: A-109, A-309, A-311, A-312, A-401, A-402, A-417, A-420)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-slate-850 border border-slate-700"></span>
@@ -528,19 +546,21 @@ export function RoomView({
               </div>
 
               <div className="text-xs text-slate-400">
-                {getAvailableRoomsForSlot(inspectorDay, inspectorSlot).length} of {ALL_ROOMS.length} venues free at this hour
+                {getAvailableRoomsForSlot(inspectorDay, inspectorSlot).length} of {FREE_STUDY_ROOMS.length} venues free at this hour
               </div>
             </div>
           </div>
 
           {/* Cards for available rooms */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {ALL_ROOMS.map(room => {
+            {FREE_STUDY_ROOMS.map(room => {
               const occupiedSession = ALL_SESSIONS.find(
                 s => s.day === inspectorDay && s.time === inspectorSlot && s.room.trim() === room.trim()
               );
               const makeupSession = makeupBookings.find(
-                m => m.day === inspectorDay && m.time === inspectorSlot && m.room.trim() === room.trim()
+                m => m.day === inspectorDay && 
+                  (m.timeSlots ? m.timeSlots.includes(inspectorSlot) : (m.time === inspectorSlot || m.time.includes(inspectorSlot))) && 
+                  m.room.trim() === room.trim()
               );
 
               const isAvailable = !occupiedSession && !makeupSession;
@@ -550,31 +570,31 @@ export function RoomView({
                 return (
                   <div
                     key={room}
-                    className={`border rounded-md p-4 shadow-xs space-y-2 ${
+                    className={`border rounded-xl p-4.5 shadow-xs space-y-2.5 ${
                       isBldgJ 
                         ? 'bg-slate-900 border-slate-800' 
                         : 'bg-emerald-950/20 border-emerald-800/80'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded flex items-center gap-1 ${
+                      <span className={`px-2.5 py-1 text-xs font-bold uppercase rounded-md flex items-center gap-1.5 ${
                         isBldgJ 
                           ? 'bg-slate-800 text-slate-300 border border-slate-700' 
                           : 'bg-emerald-950 text-emerald-300 border border-emerald-700'
                       }`}>
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                        {isBldgJ ? 'Unconfirmed (Shared Lab)' : 'Confirmed Available'}
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        {isBldgJ ? 'Shared Lab' : 'Confirmed Free'}
                       </span>
-                      <span className="text-[11px] font-mono text-slate-400">
+                      <span className="text-xs font-mono text-slate-400">
                         {isBldgJ ? 'Building J' : 'Building A'}
                       </span>
                     </div>
 
-                    <h3 className="text-base font-bold text-slate-100">
+                    <h3 className="text-lg font-bold text-slate-100">
                       {room}
                     </h3>
-                    <p className="text-xs text-slate-400">
-                      {isBldgJ || room.startsWith('Lab') ? 'Computer Laboratory' : 'Lecture Hall'} · Free at {inspectorSlot}
+                    <p className="text-sm text-slate-300">
+                      {isBldgJ ? 'Computer Laboratory' : 'Classroom'} · Free at {inspectorSlot}
                     </p>
                   </div>
                 );
@@ -582,27 +602,30 @@ export function RoomView({
                 return (
                   <div
                     key={room}
-                    className="bg-amber-950/20 border border-amber-800/80 rounded-md p-4 shadow-xs space-y-2"
+                    className="bg-rose-950/30 border border-rose-600/90 rounded-xl p-4.5 shadow-xs space-y-2.5"
                   >
                     <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-amber-950 text-amber-300 border border-amber-800 flex items-center gap-1">
-                        <AlertTriangle className="w-3 h-3 text-amber-400" /> Make-up Class
+                      <span className="px-2.5 py-1 text-xs font-bold uppercase rounded-md bg-rose-950 text-rose-300 border border-rose-600 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5 text-rose-400" /> Booked Make-up
                       </span>
-                      <span className="text-[11px] font-mono text-slate-400">
+                      <span className="text-xs font-mono text-slate-400">
                         {isBldgJ ? 'Building J' : 'Building A'}
                       </span>
                     </div>
 
-                    <h3 className="text-base font-bold text-slate-100">
-                      {room}
+                    <h3 className="text-lg font-bold text-slate-100 flex items-center justify-between">
+                      <span>{room}</span>
+                      <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-rose-900 text-rose-200">
+                        Booked
+                      </span>
                     </h3>
 
-                    <div className="p-2 rounded bg-amber-950/40 border border-amber-800 text-xs">
-                      <div className="font-semibold text-amber-200 line-clamp-1">
+                    <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-700/80 text-sm">
+                      <div className="font-bold text-rose-200 line-clamp-1">
                         {makeupSession.course}
                       </div>
-                      <div className="text-[11px] text-slate-300 mt-1">
-                        {makeupSession.groupId} · Booked by {makeupSession.bookedBy}{makeupSession.date ? ` (${makeupSession.date})` : ''}
+                      <div className="text-xs text-slate-200 mt-1">
+                        {makeupSession.groupId} · Booked by <span className="font-semibold text-rose-300">{makeupSession.bookedBy}</span>{makeupSession.date ? ` (${makeupSession.date})` : ''}
                       </div>
                     </div>
                   </div>

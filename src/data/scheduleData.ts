@@ -1,4 +1,4 @@
-export type SessionType = 'Lecture' | 'Practical' | 'TP' | 'Tutorial';
+export type SessionType = 'Lecture' | 'Practical' | 'TP' | 'Tutorial' | 'Lab';
 
 export interface ScheduleSession {
   day: 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
@@ -14,7 +14,7 @@ export interface ScheduleSession {
 
 export interface GroupSchedule {
   id: string;
-  cohort: 'I2' | 'I3' | 'I4';
+  cohort: 'I1' | 'I2' | 'I3' | 'I4' | 'I5' | 'Alumni';
   name: string;
   schedule: ScheduleSession[];
 }
@@ -40,7 +40,7 @@ export const SCHEDULE_DATA: ScheduleDataset = {
     faculty: "International Engineering School",
     academicYear: "2026 - 2027",
     semester: "Semester 1",
-    period: "Week 1-8 (From 05/10/2026)",
+    period: "Week 1-8 (From 05/10/2026 for I2-I4, 26/10/2026 for I1)",
     timeSlots: [
       "7h00 - 7h55",
       "8h00 - 8h55",
@@ -55,6 +55,162 @@ export const SCHEDULE_DATA: ScheduleDataset = {
   },
   groups: [
     {
+      id: "I1-G1",
+      cohort: "I1",
+      name: "I1 - Group 1 (Y1-G1)",
+      schedule: [
+        { day: "Monday", time: "7h00 - 7h55", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. SIEN Bross", room: "Room A-401" },
+        { day: "Monday", time: "8h00 - 8h55", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. SIEN Bross", room: "Room A-401" },
+        { day: "Monday", time: "13h00 - 13h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. HOK Tin", room: "Room J-704" },
+        { day: "Monday", time: "14h00 - 14h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. HOK Tin", room: "Room J-704" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room J-704" },
+        { day: "Monday", time: "16h10 - 17h05", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room J-704" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "ICT", type: "Lecture", lecturer: "Mr. HENG Rathpisey", room: "Room J-704" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Effective Communication Skills", type: "Lecture", lecturer: "Mr. SIEN Bross", room: "Room J-704" },
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. TIM Hoksong", room: "Room A-402" },
+        { day: "Tuesday", time: "10h10 - 11h05", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. TIM Hoksong", room: "Room A-402" },
+        { day: "Wednesday", time: "13h00 - 13h55", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. LONG Sovann", room: "Room A-402" },
+        { day: "Wednesday", time: "14h00 - 14h55", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. LONG Sovann", room: "Room A-402" },
+        { day: "Thursday", time: "7h00 - 7h55", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room J-704" },
+        { day: "Thursday", time: "8h00 - 8h55", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room J-704" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-601" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-601" },
+        { day: "Thursday", time: "13h00 - 13h55", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. NEANG Pheak", room: "Room A-309" },
+        { day: "Thursday", time: "14h00 - 14h55", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. NEANG Pheak", room: "Room A-309" },
+        { day: "Thursday", time: "15h10 - 16h05", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. NEANG Pheak", room: "Room A-309" },
+        { day: "Friday", time: "7h00 - 7h55", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. LONG Sovann", room: "Room F-205" },
+        { day: "Friday", time: "8h00 - 8h55", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. LONG Sovann", room: "Room F-205" },
+        { day: "Friday", time: "13h00 - 13h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. HOK Tin", room: "Room J-607" },
+        { day: "Friday", time: "14h00 - 14h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. HOK Tin", room: "Room J-607" },
+        { day: "Friday", time: "15h10 - 16h05", course: "Programming in C++", type: "Lab", lecturer: "Mr. HOK Tin", room: "Room J-607" }
+      ]
+    },
+    {
+      id: "I1-G2",
+      cohort: "I1",
+      name: "I1 - Group 2 (Y1-G2)",
+      schedule: [
+        { day: "Monday", time: "9h10 - 10h05", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. TIM Hoksong", room: "Room A-402" },
+        { day: "Monday", time: "10h10 - 11h05", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. TIM Hoksong", room: "Room A-402" },
+        { day: "Monday", time: "13h00 - 13h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. HOK Tin", room: "Room J-704" },
+        { day: "Monday", time: "14h00 - 14h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. HOK Tin", room: "Room J-704" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room J-704" },
+        { day: "Monday", time: "16h10 - 17h05", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room J-704" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "ICT", type: "Lecture", lecturer: "Mr. HENG Rathpisey", room: "Room J-704" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Effective Communication Skills", type: "Lecture", lecturer: "Mr. SIEN Bross", room: "Room J-704" },
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. SIEN Bross", room: "Room A-401" },
+        { day: "Tuesday", time: "10h10 - 11h05", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. SIEN Bross", room: "Room A-401" },
+        { day: "Tuesday", time: "13h00 - 13h55", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Mr. PEN Chentra", room: "Room A-312" },
+        { day: "Tuesday", time: "14h00 - 14h55", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Mr. PEN Chentra", room: "Room A-312" },
+        { day: "Tuesday", time: "15h10 - 16h05", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Mr. PEN Chentra", room: "Room A-312" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. HENG Theany", room: "Room A-109" },
+        { day: "Wednesday", time: "10h10 - 11h05", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. HENG Theany", room: "Room A-109" },
+        { day: "Wednesday", time: "15h10 - 16h05", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-603" },
+        { day: "Wednesday", time: "16h10 - 17h05", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-603" },
+        { day: "Thursday", time: "7h00 - 7h55", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room J-704" },
+        { day: "Thursday", time: "8h00 - 8h55", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room J-704" },
+        { day: "Thursday", time: "13h00 - 13h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. HOK Tin", room: "Room J-601" },
+        { day: "Thursday", time: "14h00 - 14h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. HOK Tin", room: "Room J-601" },
+        { day: "Thursday", time: "15h10 - 16h05", course: "Programming in C++", type: "Lab", lecturer: "Mr. HOK Tin", room: "Room J-601" },
+        { day: "Friday", time: "13h00 - 13h55", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. HENG Theany", room: "Room F-205" },
+        { day: "Friday", time: "14h00 - 14h55", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. HENG Theany", room: "Room F-205" }
+      ]
+    },
+    {
+      id: "I1-G3",
+      cohort: "I1",
+      name: "I1 - Group 3 (Y1-G3)",
+      schedule: [
+        { day: "Monday", time: "7h00 - 7h55", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. HENG Theany", room: "Room F-205" },
+        { day: "Monday", time: "8h00 - 8h55", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. HENG Theany", room: "Room F-205" },
+        { day: "Monday", time: "13h00 - 13h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. HOK Tin", room: "Room J-704" },
+        { day: "Monday", time: "14h00 - 14h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. HOK Tin", room: "Room J-704" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room J-704" },
+        { day: "Monday", time: "16h10 - 17h05", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room J-704" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "ICT", type: "Lecture", lecturer: "Mr. HENG Rathpisey", room: "Room J-704" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Effective Communication Skills", type: "Lecture", lecturer: "Mr. SIEN Bross", room: "Room J-704" },
+        { day: "Tuesday", time: "13h00 - 13h55", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. MOEURN Dear", room: "Room A-401" },
+        { day: "Tuesday", time: "14h00 - 14h55", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. MOEURN Dear", room: "Room A-401" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. LONG Sovann", room: "Room A-417" },
+        { day: "Wednesday", time: "10h10 - 11h05", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. LONG Sovann", room: "Room A-417" },
+        { day: "Wednesday", time: "14h00 - 14h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. HOK Tin", room: "Room J-602" },
+        { day: "Wednesday", time: "15h10 - 16h05", course: "Programming in C++", type: "Lab", lecturer: "Mr. HOK Tin", room: "Room J-602" },
+        { day: "Wednesday", time: "16h10 - 17h05", course: "Programming in C++", type: "Lab", lecturer: "Mr. HOK Tin", room: "Room J-602" },
+        { day: "Thursday", time: "7h00 - 7h55", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room J-704" },
+        { day: "Thursday", time: "8h00 - 8h55", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room J-704" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. SIEN Bross", room: "Room A-401" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. SIEN Bross", room: "Room A-401" },
+        { day: "Thursday", time: "15h10 - 16h05", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-602" },
+        { day: "Thursday", time: "16h10 - 17h05", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-602" },
+        { day: "Friday", time: "13h00 - 13h55", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Mr. PEN Chentra", room: "Room A-401" },
+        { day: "Friday", time: "14h00 - 14h55", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Mr. PEN Chentra", room: "Room A-401" },
+        { day: "Friday", time: "15h10 - 16h05", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Mr. PEN Chentra", room: "Room A-401" }
+      ]
+    },
+    {
+      id: "I1-G4",
+      cohort: "I1",
+      name: "I1 - Group 4 (Y1-G4)",
+      schedule: [
+        { day: "Monday", time: "7h00 - 7h55", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-109" },
+        { day: "Monday", time: "8h00 - 8h55", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-109" },
+        { day: "Monday", time: "9h10 - 10h05", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-601" },
+        { day: "Monday", time: "10h10 - 11h05", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-601" },
+        { day: "Monday", time: "13h00 - 13h55", course: "Mathematics for Engineering I", type: "Tutorial", lecturer: "Mr. CHHEANG Vinha", room: "Room A-420" },
+        { day: "Monday", time: "14h00 - 14h55", course: "Mathematics for Engineering I", type: "Tutorial", lecturer: "Mr. CHHEANG Vinha", room: "Room A-420" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Mathematics for Engineering I", type: "Tutorial", lecturer: "Mr. CHHEANG Vinha", room: "Room A-420" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Tuesday", time: "13h00 - 13h55", course: "ICT", type: "Lecture", lecturer: "Mr. HENG Rathpisey", room: "Room A-109" },
+        { day: "Tuesday", time: "14h00 - 14h55", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. MOEURN Dear", room: "Room A-402" },
+        { day: "Tuesday", time: "15h10 - 16h05", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. MOEURN Dear", room: "Room A-402" },
+        { day: "Wednesday", time: "8h00 - 8h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. BOU Channa", room: "Room J-601" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "Programming in C++", type: "Lab", lecturer: "Mr. BOU Channa", room: "Room J-601" },
+        { day: "Wednesday", time: "10h10 - 11h05", course: "Programming in C++", type: "Lab", lecturer: "Mr. BOU Channa", room: "Room J-601" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room A-109" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room A-109" },
+        { day: "Thursday", time: "15h10 - 16h05", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. LONG Sovann", room: "Room A-311" },
+        { day: "Thursday", time: "16h10 - 17h05", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. LONG Sovann", room: "Room A-311" },
+        { day: "Friday", time: "7h00 - 7h55", course: "Effective Communication Skills", type: "Lecture", lecturer: "Mr. CHAT Koemhong", room: "Room A-109" },
+        { day: "Friday", time: "8h00 - 8h55", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. CHAT Koemhong", room: "Room A-109" },
+        { day: "Friday", time: "9h10 - 10h05", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. CHAT Koemhong", room: "Room A-109" },
+        { day: "Friday", time: "15h10 - 16h05", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. HENG Theany", room: "Room F-205" },
+        { day: "Friday", time: "16h10 - 17h05", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. HENG Theany", room: "Room F-205" }
+      ]
+    },
+    {
+      id: "I1-G5",
+      cohort: "I1",
+      name: "I1 - Group 5 (Y1-G5)",
+      schedule: [
+        { day: "Monday", time: "7h00 - 7h55", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-109" },
+        { day: "Monday", time: "8h00 - 8h55", course: "Engineering Mathematics I", type: "Lecture", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-109" },
+        { day: "Monday", time: "13h00 - 13h55", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-603" },
+        { day: "Monday", time: "14h00 - 14h55", course: "ICT", type: "Lab", lecturer: "Mr. HENG Rathpisey", room: "Room J-603" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. HENG Theany", room: "Room F-205" },
+        { day: "Monday", time: "16h10 - 17h05", course: "Physics for Engineers I", type: "Lab", lecturer: "Mr. HENG Theany", room: "Room F-205" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Programming in C++", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
+        { day: "Tuesday", time: "13h00 - 13h55", course: "ICT", type: "Lecture", lecturer: "Mr. HENG Rathpisey", room: "Room A-109" },
+        { day: "Tuesday", time: "15h10 - 16h05", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. CHAT Koemhong", room: "Room A-401" },
+        { day: "Tuesday", time: "16h10 - 17h05", course: "Effective Communication Skills", type: "Practical", lecturer: "Mr. CHAT Koemhong", room: "Room A-401" },
+        { day: "Wednesday", time: "7h00 - 7h55", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. LONG Sovann", room: "" },
+        { day: "Wednesday", time: "8h00 - 8h55", course: "Physics for Engineers I", type: "Tutorial", lecturer: "Mr. LONG Sovann", room: "" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. TIM Hoksong", room: "Room A-420" },
+        { day: "Wednesday", time: "10h10 - 11h05", course: "Project and Seminar I", type: "Practical", lecturer: "Mr. TIM Hoksong", room: "Room A-420" },
+        { day: "Wednesday", time: "13h00 - 13h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. BOU Channa", room: "Room J-603" },
+        { day: "Wednesday", time: "14h00 - 14h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. BOU Channa", room: "Room J-603" },
+        { day: "Thursday", time: "7h00 - 7h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Thursday", time: "8h00 - 8h55", course: "Programming in C++", type: "Lab", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room A-109" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room A-109" },
+        { day: "Friday", time: "7h00 - 7h55", course: "Effective Communication Skills", type: "Lecture", lecturer: "Mr. CHAT Koemhong", room: "Room A-109" },
+        { day: "Friday", time: "8h00 - 8h55", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-401" },
+        { day: "Friday", time: "9h10 - 10h05", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-401" },
+        { day: "Friday", time: "10h10 - 11h05", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-401" }
+      ]
+    },
+    {
       id: "I2-SE",
       cohort: "I2",
       name: "I2 - Software Engineering",
@@ -65,8 +221,8 @@ export const SCHEDULE_DATA: ScheduleDataset = {
         { day: "Monday", time: "14h00 - 14h55", course: "Project and Seminart III", type: "Practical", lecturer: "Dr. SRANG Sarot", room: "Room A-401" },
         { day: "Monday", time: "15h10 - 16h05", course: "Fundamental Concept of Data Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-602" },
         { day: "Monday", time: "16h10 - 17h05", course: "Fundamental Concept of Data Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-602" },
-        { day: "Tuesday", time: "7h00 - 7h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
-        { day: "Tuesday", time: "8h00 - 8h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-401" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-401" },
         { day: "Tuesday", time: "9h10 - 10h05", course: "Programming Design & Implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
         { day: "Tuesday", time: "10h10 - 11h05", course: "Programming Design & Implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
         { day: "Wednesday", time: "7h00 - 7h55", course: "Introduction to Software Engineering", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room J-602" },
@@ -77,7 +233,7 @@ export const SCHEDULE_DATA: ScheduleDataset = {
         { day: "Thursday", time: "10h10 - 11h05", course: "UI/UX", type: "Practical", lecturer: "Mr. OL Phearun", room: "Room J-602" },
         { day: "Thursday", time: "13h00 - 13h55", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
         { day: "Thursday", time: "14h00 - 14h55", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
-        { day: "Thursday", time: "15h10 - 16h05", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
+        { day: "Thursday", time: "15h10 - 16h05", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-603" },
         { day: "Friday", time: "13h00 - 13h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
         { day: "Friday", time: "14h00 - 14h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
         { day: "Friday", time: "15h10 - 16h05", course: "Integrating Indigenous Science and STEM", type: "Practical", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
@@ -87,14 +243,14 @@ export const SCHEDULE_DATA: ScheduleDataset = {
     {
       id: "I2-AIECS",
       cohort: "I2",
-      name: "I2 - AI & Electronic Comm. Systems",
+      name: "I2 - AI Engineering and Cyber Security",
       schedule: [
         { day: "Monday", time: "9h10 - 10h05", course: "Fundamental Concept of Data Security", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-109" },
         { day: "Monday", time: "10h10 - 11h05", course: "Fundamental Concept of Data Security", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-109" },
         { day: "Monday", time: "13h00 - 13h55", course: "Fundamental Concept of Data Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-602" },
         { day: "Monday", time: "14h00 - 14h55", course: "Fundamental Concept of Data Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-602" },
-        { day: "Tuesday", time: "7h00 - 7h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
-        { day: "Tuesday", time: "8h00 - 8h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
+        { day: "Tuesday", time: "7h00 - 7h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-401" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Introduction to Software Engineering", type: "Lecture", lecturer: "Mr. TAL Tongsreng", room: "Room A-401" },
         { day: "Tuesday", time: "9h10 - 10h05", course: "Programming design & implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
         { day: "Tuesday", time: "10h10 - 11h05", course: "Programming design & implementation", type: "Lecture", lecturer: "Mr. BOU Channa", room: "Room A-109" },
         { day: "Tuesday", time: "13h00 - 13h55", course: "Programming design & implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
@@ -106,8 +262,8 @@ export const SCHEDULE_DATA: ScheduleDataset = {
         { day: "Thursday", time: "8h00 - 8h55", course: "Introduction to Computer Communication and Networks", type: "Lecture", lecturer: "Mr. YOU Vanndy", room: "Room A-401" },
         { day: "Thursday", time: "13h00 - 13h55", course: "Introduction to Computer Communication and Networks", type: "Practical", lecturer: "Mr. YOU Vanndy", room: "Room J-602" },
         { day: "Thursday", time: "14h00 - 14h55", course: "Introduction to Computer Communication and Networks", type: "Practical", lecturer: "Mr. YOU Vanndy", room: "Room J-602" },
-        { day: "Friday", time: "9h10 - 10h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Lab A-109" },
-        { day: "Friday", time: "10h10 - 11h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Lab A-109" },
+        { day: "Friday", time: "9h10 - 10h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
+        { day: "Friday", time: "10h10 - 11h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" },
         { day: "Friday", time: "13h00 - 13h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
         { day: "Friday", time: "14h00 - 14h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
         { day: "Friday", time: "15h10 - 16h05", course: "Integrating Indigenous Science and STEM", type: "Practical", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
@@ -117,7 +273,7 @@ export const SCHEDULE_DATA: ScheduleDataset = {
     {
       id: "I2-CMIE",
       cohort: "I2",
-      name: "I2 - Civil & Mech. Int. Eng.",
+      name: "I2 - Construction Management and Infrastructure Engineering",
       schedule: [
         { day: "Monday", time: "14h00 - 14h55", course: "Project and Seminart III", type: "Lecture", lecturer: "Dr. HENG Sounean", room: "Room A-401" },
         { day: "Monday", time: "15h10 - 16h05", course: "Project and Seminart III", type: "Practical", lecturer: "Dr. HENG Sounean", room: "Room A-401" },
@@ -128,8 +284,8 @@ export const SCHEDULE_DATA: ScheduleDataset = {
         { day: "Tuesday", time: "15h10 - 16h05", course: "Programming Design & Implementation", type: "Practical", lecturer: "Mr. BOU Channa", room: "Room J-602" },
         { day: "Thursday", time: "7h00 - 7h55", course: "Engineering Mechanics", type: "Lecture", lecturer: "Dr. LIM Sovanvichet", room: "Room A-401" },
         { day: "Thursday", time: "8h00 - 8h55", course: "Engineering Mechanics", type: "Lecture", lecturer: "Dr. LIM Sovanvichet", room: "Room A-401" },
-        { day: "Thursday", time: "9h10 - 10h05", course: "Engineering Mechanics", type: "Tutorial", lecturer: "Dr. LIM Sovanvichet", room: "Room A-401" },
-        { day: "Thursday", time: "10h10 - 11h05", course: "Engineering Mechanics", type: "Tutorial", lecturer: "Dr. LIM Sovanvichet", room: "Room A-401" },
+        { day: "Thursday", time: "9h10 - 10h05", course: "Engineering Mechanics", type: "Tutorial", lecturer: "Dr. LIM Sovanvichet", room: "Room A-402" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "Engineering Mechanics", type: "Tutorial", lecturer: "Dr. LIM Sovanvichet", room: "Room A-402" },
         { day: "Thursday", time: "13h00 - 13h55", course: "Electrical Systems", type: "Lecture", lecturer: "Dr. AM Sok Chea", room: "Room A-401" },
         { day: "Thursday", time: "14h00 - 14h55", course: "Electrical Systems", type: "Lecture", lecturer: "Dr. AM Sok Chea", room: "Room A-401" },
         { day: "Thursday", time: "15h10 - 16h05", course: "Electrical Systems", type: "Practical", lecturer: "Dr. AM Sok Chea", room: "Room A-401" },
@@ -172,14 +328,14 @@ export const SCHEDULE_DATA: ScheduleDataset = {
     {
       id: "I3-AIECS",
       cohort: "I3",
-      name: "I3 - AI & Electronic Comm. Systems",
+      name: "I3 - AI Engineering and Cyber Security",
       schedule: [
         { day: "Monday", time: "9h10 - 10h05", course: "Network", type: "Lecture", lecturer: "Dr. KUY Movsun", room: "Room A-420" },
         { day: "Monday", time: "10h10 - 11h05", course: "Network", type: "Lecture", lecturer: "Dr. KUY Movsun", room: "Room A-420" },
         { day: "Monday", time: "13h00 - 13h55", course: "Network", type: "Practical", lecturer: "Dr. KUY Movsun", room: "Room J-601" },
         { day: "Monday", time: "14h00 - 14h55", course: "Network", type: "Practical", lecturer: "Dr. KUY Movsun", room: "Room J-601" },
-        { day: "Monday", time: "15h10 - 16h05", course: "Object-Oriented Programming", type: "Lecture", lecturer: "Mr. HOK TIN", room: "Room A-420" },
-        { day: "Monday", time: "16h10 - 17h05", course: "Object-Oriented Programming", type: "Lecture", lecturer: "Mr. HOK TIN", room: "Room A-420" },
+        { day: "Monday", time: "15h10 - 16h05", course: "Object-Oriented Programming", type: "Lecture", lecturer: "Mr. HOK TIN", room: "Room A-402" },
+        { day: "Monday", time: "16h10 - 17h05", course: "Object-Oriented Programming", type: "Lecture", lecturer: "Mr. HOK TIN", room: "Room A-402" },
         { day: "Tuesday", time: "9h10 - 10h05", course: "Introduction to Cryptography", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-420" },
         { day: "Tuesday", time: "10h10 - 11h05", course: "Introduction to Cryptography", type: "Lecture", lecturer: "Mr. PICH Reatrey", room: "Room A-420" },
         { day: "Tuesday", time: "13h00 - 13h55", course: "Operating Systems", type: "Lecture", lecturer: "Mr. YOU Vanndy", room: "Room A-420" },
@@ -225,7 +381,7 @@ export const SCHEDULE_DATA: ScheduleDataset = {
     {
       id: "I4-AIECS",
       cohort: "I4",
-      name: "I4 - AI & Electronic Comm. Systems",
+      name: "I4 - AI Engineering and Cyber Security",
       schedule: [
         { day: "Tuesday", time: "9h10 - 10h05", course: "Ethical Hacking and Penetration Testing", type: "Lecture", lecturer: "Mr. Roosveltte Taing", room: "Room A-417" },
         { day: "Tuesday", time: "10h10 - 11h05", course: "Ethical Hacking and Penetration Testing", type: "Lecture", lecturer: "Mr. Roosveltte Taing", room: "Room A-417" },
@@ -247,6 +403,49 @@ export const SCHEDULE_DATA: ScheduleDataset = {
         { day: "Friday", time: "13h00 - 13h55", course: "Machine Learning", type: "Practical", lecturer: "Mr. PHALLY Rathavann", room: "Room J-603" },
         { day: "Friday", time: "14h00 - 14h55", course: "Machine Learning", type: "Practical", lecturer: "Mr. PHALLY Rathavann", room: "Room J-603" }
       ]
+    },
+    {
+      id: "I5-SE",
+      cohort: "I5",
+      name: "I5 - Software Engineering (Final Year / Capstone & PFE)",
+      schedule: [
+        { day: "Monday", time: "8h00 - 8h55", course: "Projet de Fin d'Études (PFE) Seminar", type: "Lecture", lecturer: "Dr. SRANG Sarot", room: "Room A-401" },
+        { day: "Monday", time: "9h10 - 10h05", course: "Projet de Fin d'Études (PFE) Mentorship", type: "Practical", lecturer: "Dr. SRANG Sarot", room: "Room A-401" },
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Cloud Architecture & DevOps", type: "Lecture", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" },
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Cloud Architecture & DevOps", type: "Practical", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" },
+        { day: "Thursday", time: "13h00 - 13h55", course: "Industry Capstone Defense & Review", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-401" },
+        { day: "Thursday", time: "14h00 - 14h55", course: "Industry Capstone Defense & Review", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-401" }
+      ]
+    },
+    {
+      id: "I5-AIECS",
+      cohort: "I5",
+      name: "I5 - AI Engineering & Cyber Security (Final Year / PFE)",
+      schedule: [
+        { day: "Monday", time: "13h00 - 13h55", course: "Advanced AI Defense & Research", type: "Lecture", lecturer: "Mr. PHALLY Rathavann", room: "Room A-417" },
+        { day: "Monday", time: "14h00 - 14h55", course: "Advanced AI Defense & Research", type: "Practical", lecturer: "Mr. PHALLY Rathavann", room: "Room A-417" },
+        { day: "Wednesday", time: "8h00 - 8h55", course: "PFE Thesis Project", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room A-401" },
+        { day: "Wednesday", time: "9h10 - 10h05", course: "PFE Thesis Project", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room A-401" }
+      ]
+    },
+    {
+      id: "I5-CMIE",
+      cohort: "I5",
+      name: "I5 - Construction & Infrastructure (Final Year / PFE)",
+      schedule: [
+        { day: "Tuesday", time: "8h00 - 8h55", course: "Major Infrastructure PFE Capstone", type: "Lecture", lecturer: "Dr. LIM Sovanvichet", room: "Room A-402" },
+        { day: "Tuesday", time: "9h10 - 10h05", course: "Major Infrastructure PFE Capstone", type: "Practical", lecturer: "Dr. LIM Sovanvichet", room: "Room A-402" },
+        { day: "Thursday", time: "10h10 - 11h05", course: "Mega Project Site Management", type: "Lecture", lecturer: "Dr. HENG Sounean", room: "Room A-401" }
+      ]
+    },
+    {
+      id: "Alumni",
+      cohort: "Alumni",
+      name: "ITC Alumni Network & Graduate Community",
+      schedule: [
+        { day: "Saturday", time: "9h10 - 10h05", course: "Alumni Engineering Mentorship & Networking", type: "Lecture", lecturer: "Dr. SRANG Sarot", room: "Room A-109" },
+        { day: "Saturday", time: "10h10 - 11h05", course: "Tech Career Connect & Industry Keynotes", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" }
+      ]
     }
   ]
 };
@@ -263,17 +462,22 @@ export const ALL_SESSIONS: ScheduleSession[] = SCHEDULE_DATA.groups.flatMap(g =>
 
 // All unique Lecturers sorted alphabetically
 export const ALL_LECTURERS = Array.from(
-  new Set(ALL_SESSIONS.map(s => s.lecturer))
+  new Set(ALL_SESSIONS.map(s => s.lecturer).filter(Boolean))
 ).sort((a, b) => a.localeCompare(b));
 
-// All unique Rooms sorted
+// All unique Rooms sorted (excluding empty/unassigned rooms)
 export const ALL_ROOMS = Array.from(
-  new Set(ALL_SESSIONS.map(s => s.room.trim()))
+  new Set(ALL_SESSIONS.map(s => s.room.trim()).filter(Boolean))
 ).sort((a, b) => a.localeCompare(b));
+
+// Building A rooms exclusively available for class monitor make-up bookings
+export const BOOKABLE_ROOMS = ALL_ROOMS.filter(r => r.includes('A-'));
+
+// General study rooms available for student free room view (excludes specialized labs like F-205)
+export const FREE_STUDY_ROOMS = ALL_ROOMS.filter(r => !r.includes('F-205') && !r.includes('F-'));
 
 // Parse time slot to [startMinutes, endMinutes]
 export function parseSlotMinutes(slot: string): [number, number] {
-  // Format: "7h00 - 7h55" or "13h00 - 13h55"
   const [startStr, endStr] = slot.split('-').map(s => s.trim());
   const parsePart = (str: string) => {
     const [h, m] = str.split('h').map(Number);
@@ -290,7 +494,6 @@ export function getCambodiaTime(): {
   totalMinutes: number;
 } {
   const now = new Date();
-  // Get time in Asia/Phnom_Penh
   const phnomPenhString = now.toLocaleString('en-US', { timeZone: 'Asia/Phnom_Penh' });
   const cambodiaDate = new Date(phnomPenhString);
 
@@ -335,6 +538,46 @@ export function getSlotLiveStatus(slot: string, targetDay: string, cambodiaInfo:
   return { isCurrent: false, isUpcoming: false, isPast: false };
 }
 
+// Get current slot or closest slot given minutes from midnight
+export function getCurrentOrClosestSlot(totalMinutes: number): string {
+  const slots = SCHEDULE_DATA.meta.timeSlots;
+  for (const s of slots) {
+    const [start, end] = parseSlotMinutes(s);
+    if (totalMinutes >= start && totalMinutes <= end) {
+      return s;
+    }
+  }
+  let closestSlot = slots[0];
+  let minDiff = Math.abs(totalMinutes - parseSlotMinutes(slots[0])[0]);
+  for (let i = 1; i < slots.length; i++) {
+    const [start] = parseSlotMinutes(slots[i]);
+    const diff = Math.abs(totalMinutes - start);
+    if (diff < minDiff) {
+      minDiff = diff;
+      closestSlot = slots[i];
+    }
+  }
+  return closestSlot;
+}
+
+// Match user input string to one of the standard time slots
+export function matchSlotFromInput(input: string): string | null {
+  if (!input.trim()) return null;
+  const clean = input.toLowerCase().trim().replace(/[:\s]/g, '');
+  const slots = SCHEDULE_DATA.meta.timeSlots;
+  for (const s of slots) {
+    const sClean = s.toLowerCase().replace(/[:\s]/g, '');
+    if (sClean.includes(clean) || clean.includes(sClean)) {
+      return s;
+    }
+    const [startPart] = s.split('-').map(x => x.trim().toLowerCase().replace(/[:\s]/g, ''));
+    if (startPart && (startPart.includes(clean) || clean.includes(startPart))) {
+      return s;
+    }
+  }
+  return null;
+}
+
 // Style tokens per session type
 export function getSessionTypeStyle(type: SessionType): {
   badge: string;
@@ -348,104 +591,51 @@ export function getSessionTypeStyle(type: SessionType): {
         badge: 'bg-indigo-950/80 text-indigo-200 border border-indigo-800',
         card: 'bg-indigo-950/40 hover:bg-indigo-950/60 text-indigo-100 border border-indigo-800/80',
         border: 'border-indigo-600',
-        indicator: 'bg-indigo-400'
+        indicator: 'bg-indigo-500'
       };
     case 'Practical':
-    case 'TP':
+    case 'Lab':
       return {
-        badge: 'bg-emerald-950/80 text-emerald-200 border border-emerald-800',
-        card: 'bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-100 border border-emerald-800/80',
-        border: 'border-emerald-600',
-        indicator: 'bg-emerald-400'
+        badge: 'bg-sky-950/80 text-sky-200 border border-sky-800',
+        card: 'bg-sky-950/40 hover:bg-sky-950/60 text-sky-100 border border-sky-800/80',
+        border: 'border-sky-600',
+        indicator: 'bg-sky-500'
       };
     case 'Tutorial':
       return {
         badge: 'bg-amber-950/80 text-amber-200 border border-amber-800',
         card: 'bg-amber-950/40 hover:bg-amber-950/60 text-amber-100 border border-amber-800/80',
         border: 'border-amber-600',
-        indicator: 'bg-amber-400'
+        indicator: 'bg-amber-500'
+      };
+    case 'TP':
+      return {
+        badge: 'bg-emerald-950/80 text-emerald-200 border border-emerald-800',
+        card: 'bg-emerald-950/40 hover:bg-emerald-950/60 text-emerald-100 border border-emerald-800/80',
+        border: 'border-emerald-600',
+        indicator: 'bg-emerald-500'
+      };
+    default:
+      return {
+        badge: 'bg-slate-900 text-slate-300 border border-slate-700',
+        card: 'bg-slate-900/40 hover:bg-slate-900/60 text-slate-200 border border-slate-800',
+        border: 'border-slate-700',
+        indicator: 'bg-slate-500'
       };
   }
 }
 
-// Find closest or active standard slot from Cambodia time minutes
-export function getCurrentOrClosestSlot(cambodiaMinutes: number): string {
-  const slots = SCHEDULE_DATA.meta.timeSlots;
-  for (const slot of slots) {
-    const [start, end] = parseSlotMinutes(slot);
-    if (cambodiaMinutes >= start && cambodiaMinutes <= end) {
-      return slot;
-    }
-  }
-  // If in between, find the next upcoming slot
-  for (const slot of slots) {
-    const [start] = parseSlotMinutes(slot);
-    if (cambodiaMinutes < start) {
-      return slot;
-    }
-  }
-  // If after the day's last class, default to first slot
-  return slots[0];
+// Filter helper: check whether search query matches session
+export function matchesQuery(session: ScheduleSession, query: string): boolean {
+  if (!query.trim()) return true;
+  const q = query.toLowerCase().trim();
+  return (
+    session.course.toLowerCase().includes(q) ||
+    session.lecturer.toLowerCase().includes(q) ||
+    session.room.toLowerCase().includes(q) ||
+    (session.groupName && session.groupName.toLowerCase().includes(q)) ||
+    (session.groupId && session.groupId.toLowerCase().includes(q)) ||
+    (session.cohort && session.cohort.toLowerCase().includes(q)) ||
+    session.type.toLowerCase().includes(q)
+  );
 }
-
-// Intelligent parser for user-typed time string (e.g. "9", "9h10", "14:00", "2pm", "10:10")
-export function matchSlotFromInput(input: string): string | null {
-  const clean = input.trim().toLowerCase();
-  if (!clean) return null;
-
-  const slots = SCHEDULE_DATA.meta.timeSlots;
-
-  // Direct exact match
-  const exact = slots.find(s => s.toLowerCase() === clean);
-  if (exact) return exact;
-
-  // Starts with prefix match, e.g. "7h00", "7h", "13h"
-  const prefixMatch = slots.find(s => s.toLowerCase().startsWith(clean));
-  if (prefixMatch) return prefixMatch;
-
-  // Numeric hour parser
-  let hour: number | null = null;
-  let minute: number = 0;
-
-  if (clean.includes('pm')) {
-    const num = parseInt(clean.replace('pm', '').trim(), 10);
-    if (!isNaN(num)) hour = num < 12 ? num + 12 : num;
-  } else if (clean.includes('am')) {
-    const num = parseInt(clean.replace('am', '').trim(), 10);
-    if (!isNaN(num)) hour = num;
-  } else if (clean.includes(':') || clean.includes('h')) {
-    const parts = clean.split(/[:h]/);
-    hour = parseInt(parts[0], 10);
-    if (parts[1]) minute = parseInt(parts[1], 10);
-  } else {
-    const num = parseInt(clean, 10);
-    if (!isNaN(num)) {
-      // If user typed 1, 2, 3, 4, 5, map to afternoon 13, 14, 15, 16, 17
-      if (num >= 1 && num <= 5) hour = num + 12;
-      else hour = num;
-    }
-  }
-
-  if (hour !== null && !isNaN(hour)) {
-    const targetMin = hour * 60 + minute;
-    // Find closest slot
-    let closestSlot = slots[0];
-    let smallestDelta = Infinity;
-
-    for (const slot of slots) {
-      const [start, end] = parseSlotMinutes(slot);
-      if (targetMin >= start && targetMin <= end) {
-        return slot;
-      }
-      const delta = Math.abs(start - targetMin);
-      if (delta < smallestDelta) {
-        smallestDelta = delta;
-        closestSlot = slot;
-      }
-    }
-    return closestSlot;
-  }
-
-  return null;
-}
-

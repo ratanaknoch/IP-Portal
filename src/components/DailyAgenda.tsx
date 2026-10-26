@@ -69,12 +69,12 @@ export function DailyAgenda({
   return (
     <div className="space-y-4">
       {/* Day Selector & Filters Strip (No-print) */}
-      <div className="no-print bg-slate-900 border border-slate-800 rounded-md p-4 space-y-3 shadow-xs">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="no-print bg-slate-900 border border-slate-800 rounded-md p-2.5 sm:p-3 space-y-2 shadow-xs">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           {/* Day selection buttons */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mr-1">
-              Select Day:
+          <div className="flex items-center gap-1 overflow-x-auto pb-0.5">
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mr-1 shrink-0">
+              Day:
             </span>
             {days.map((day) => {
               const isSelected = selectedDay === day;
@@ -83,7 +83,7 @@ export function DailyAgenda({
                 <button
                   key={day}
                   onClick={() => setSelectedDay(day)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                  className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap flex items-center gap-1 ${
                     isSelected
                       ? 'bg-slate-100 text-slate-900 font-bold shadow-xs'
                       : 'text-slate-300 hover:bg-slate-800 border border-slate-800'
@@ -104,13 +104,13 @@ export function DailyAgenda({
 
           {/* Cohort filter (only in Class Monitor mode) */}
           {!isStudentMode ? (
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Cohort:</span>
-              {['ALL', 'I2', 'I3', 'I4'].map((cohort) => (
+            <div className="flex items-center gap-1">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider mr-1">Cohort:</span>
+              {['ALL', 'I1', 'I2', 'I3', 'I4'].map((cohort) => (
                 <button
                   key={cohort}
                   onClick={() => setSelectedCohort(cohort)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
                     selectedCohort === cohort
                       ? 'bg-slate-100 text-slate-900 font-bold'
                       : 'text-slate-400 hover:text-white border border-slate-800'
@@ -128,9 +128,9 @@ export function DailyAgenda({
           )}
         </div>
 
-        <div className="text-xs text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800">
+        <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800">
           <span>
-            Displaying schedule for <strong className="text-slate-200">{selectedDay}</strong>
+            Schedule for <strong className="text-slate-200">{selectedDay}</strong>
           </span>
           <span className="font-mono">{sessionsOnDay.length} sessions listed</span>
         </div>
@@ -203,7 +203,7 @@ export function DailyAgenda({
                         </h4>
                         <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
                           <span className="truncate">{session.lecturer}</span>
-                          <span className="font-mono shrink-0 ml-1">{session.room}</span>
+                          <span className="font-mono shrink-0 ml-1">{session.room || "TBD"}</span>
                         </div>
                       </div>
                     );

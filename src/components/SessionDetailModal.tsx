@@ -111,10 +111,10 @@ export function SessionDetailModal({
                   <MapPin className="w-3.5 h-3.5" /> Location
                 </span>
                 <p className="font-medium text-slate-100">
-                  {session.room}
+                  {session.room || "Room TBD (Unassigned)"}
                 </p>
               </div>
-              {onSelectRoom && (
+              {onSelectRoom && session.room && (
                 <button
                   onClick={() => {
                     onSelectRoom(session.room);

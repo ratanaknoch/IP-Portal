@@ -1,20 +1,23 @@
-import { useEffect, useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
-  Clock, 
-  Printer, 
-  ArrowLeft, 
+  CalendarDays, 
+  Users, 
   Building2, 
-  Download, 
-  Check, 
-  Bookmark, 
-  Lock, 
-  GraduationCap,
-  Users,
+  Calendar, 
+  ArrowLeft,
   Plus,
-  ExternalLink
+  ShieldCheck,
+  RefreshCw,
+  LogOut,
+  ChevronDown,
+  Bell,
+  LogIn,
+  Sparkles,
+  GraduationCap,
+  Award
 } from 'lucide-react';
-import { getCambodiaTime, ALL_SESSIONS, parseSlotMinutes, GroupSchedule } from '../data/scheduleData';
-import { downloadCohortIcs } from '../utils/calendarExport';
+import { GroupSchedule } from '../data/scheduleData';
+import { UserProfile } from '../lib/firebase';
 
 interface HeaderProps {
   activeMode: 'matrix' | 'lecturer' | 'room' | 'agenda' | 'clubs';
@@ -26,61 +29,63 @@ interface HeaderProps {
   onChangeClass?: () => void;
   activeGroup?: GroupSchedule;
   portalRole?: 'student' | 'class-monitor';
+  userProfile?: UserProfile | null;
+  unreadNotificationsCount?: number;
+  onOpenInbox?: () => void;
+  onOpenAuthModal?: () => void;
+  onOpenAdminDashboard?: () => void;
+  onLogout?: () => void;
 }
 
 export function Header({
   activeMode,
   onSelectMode,
   onReturnHome,
-  onOpenFreeRooms,
   onOpenBookingModal,
   onOpenClubModal,
   onChangeClass,
-  activeGroup,
-  portalRole = 'student'
+  portalRole = 'student',
+  userProfile,
+  unreadNotificationsCount = 0,
+  onOpenInbox,
+  onOpenAuthModal,
+  onOpenAdminDashboard,
+  onLogout
 }: HeaderProps) {
-  const [timeInfo, setTimeInfo] = useState(getCambodiaTime());
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeInfo(getCambodiaTime());
-    }, 10000); // refresh every 10s
-    return () => clearInterval(timer);
-  }, []);
-
-  // Determine if any session across the school is active right now
-  const activeSessionsCount = ALL_SESSIONS.filter(s => {
-    if (s.day !== timeInfo.dayName) return false;
-    const [start, end] = parseSlotMinutes(s.time);
-    return timeInfo.totalMinutes >= start && timeInfo.totalMinutes <= end;
-  }).length;
-
-  const handleExportIcs = () => {
-    if (activeGroup) {
-      downloadCohortIcs(activeGroup);
-      setDownloadSuccess(true);
-      setTimeout(() => setDownloadSuccess(false), 3000);
-    }
-  };
-
   const isStudent = portalRole === 'student';
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    }
+    if (showUserMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserMenu]);
 
   return (
-    <header className="border-b border-slate-800 bg-slate-900 transition-colors">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 gap-4">
+    <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md transition-colors">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
+        <div className="flex items-center justify-between h-14 gap-2 sm:gap-4">
           
-          {/* Brand Zone with Official School Logo & Return to Portal Home */}
-          <div className="flex items-center gap-3 shrink-0">
+          {/* Left: Brand & Portal Back */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             {onReturnHome && (
               <button
                 onClick={onReturnHome}
-                title="Return to ITC International Program Portal"
-                className="no-print p-1.5 text-slate-400 hover:text-slate-100 rounded-md hover:bg-slate-800 transition-colors flex items-center gap-1 text-xs font-medium"
+                title="Return to Main Portal"
+                className="no-print p-2 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5 text-sm font-semibold cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span className="hidden lg:inline">Portal Home</span>
+                <span className="hidden sm:inline">Home</span>
               </button>
             )}
 
@@ -89,310 +94,286 @@ export function Header({
               className={`flex items-center gap-2.5 ${onReturnHome ? 'cursor-pointer group' : ''}`}
               title={onReturnHome ? "Go to Main Portal" : undefined}
             >
-              <div className="w-9 h-9 rounded-lg bg-white/90 backdrop-blur-sm p-0.5 shadow-md shadow-black/40 border border-white/25 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white/95 p-1 shadow-md border border-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <img
                   src="/assets/cropped-itc_tight.png"
-                  alt="ITC School Logo"
+                  alt="ITC Logo"
                   className="w-full h-full object-contain"
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-semibold text-slate-100 text-sm sm:text-base leading-tight tracking-tight group-hover:text-sky-400 transition-colors">
-                    {isStudent ? 'Student Portal' : 'Class Monitor Portal'}
-                  </span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold uppercase ${
-                    isStudent
-                      ? 'bg-sky-950 text-sky-300 border border-sky-800'
-                      : 'bg-amber-950 text-amber-300 border border-amber-800'
-                  }`}>
-                    {isStudent ? 'Student' : 'Monitor'}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-slate-400 font-normal">
-                    International Engineering School
-                  </span>
-                  {isStudent && activeGroup && (
-                    <span className="text-[10px] font-mono text-sky-400 hidden sm:inline">
-                      · {activeGroup.id}
-                    </span>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-slate-100 text-sm sm:text-base tracking-tight group-hover:text-sky-400 transition-colors">
+                  {isStudent ? 'Student Timetable' : 'Class Monitor'}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider ${
+                  isStudent
+                    ? 'bg-sky-950 text-sky-300 border border-sky-800'
+                    : 'bg-amber-950 text-amber-300 border border-amber-800'
+                }`}>
+                  {isStudent ? 'Student' : 'Monitor'}
+                </span>
               </div>
             </div>
           </div>
 
-          {/* Navigation Modes */}
-          {/* If Student: ONLY Timetable Matrix, Today's Agenda, and Clubs (per user request!) */}
-          {/* If Monitor: Timetable Matrix, By Lecturer, Room Occupancy, Today's Agenda, Book Room */}
-          <nav className="no-print hidden md:flex items-center gap-1 p-1 bg-slate-800 rounded-md border border-slate-700/60">
+          {/* Center: Clean Nav Tabs with unique URLs & larger text */}
+          <nav className="no-print hidden sm:flex items-center gap-1.5 bg-slate-950/70 p-1 rounded-xl border border-slate-800">
             <button
               onClick={() => onSelectMode('matrix')}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                 activeMode === 'matrix'
-                  ? 'bg-slate-700 text-slate-100 shadow-xs'
-                  : 'text-slate-400 hover:text-slate-100'
+                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
               }`}
             >
-              Timetable Matrix
+              <CalendarDays className="w-4 h-4" />
+              <span>Timetable</span>
+            </button>
+
+            <button
+              onClick={() => onSelectMode('agenda')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                activeMode === 'agenda'
+                  ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
+              }`}
+            >
+              <Calendar className="w-4 h-4" />
+              <span>Daily Agenda</span>
             </button>
 
             {!isStudent && (
               <>
                 <button
-                  onClick={() => onSelectMode('lecturer')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
-                    activeMode === 'lecturer'
-                      ? 'bg-slate-700 text-slate-100 shadow-xs'
-                      : 'text-slate-400 hover:text-slate-100'
-                  }`}
-                >
-                  By Lecturer
-                </button>
-                <button
                   onClick={() => onSelectMode('room')}
-                  className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
                     activeMode === 'room'
-                      ? 'bg-slate-700 text-slate-100 shadow-xs'
-                      : 'text-slate-400 hover:text-slate-100'
+                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
                   }`}
                 >
-                  Room Occupancy
+                  <Building2 className="w-4 h-4" />
+                  <span>Rooms</span>
+                </button>
+
+                <button
+                  onClick={() => onSelectMode('lecturer')}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                    activeMode === 'lecturer'
+                      ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
+                      : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>Lecturers</span>
                 </button>
               </>
             )}
 
-            <button
-              onClick={() => onSelectMode('agenda')}
-              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
-                activeMode === 'agenda'
-                  ? 'bg-slate-700 text-slate-100 shadow-xs'
-                  : 'text-slate-400 hover:text-slate-100'
-              }`}
-            >
-              Today's Agenda
-            </button>
-
-            {/* Clubs button in Student Portal - triggers under dev popup per user instruction */}
-            {isStudent && (
+            {isStudent && onOpenClubModal && (
               <button
-                onClick={() => (onOpenClubModal ? onOpenClubModal() : onSelectMode('clubs'))}
-                className="px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap flex items-center gap-1 text-slate-400 hover:text-slate-100"
+                onClick={onOpenClubModal}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                  activeMode === 'clubs'
+                    ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
+                }`}
               >
+                <Users className="w-4 h-4" />
                 <span>Clubs</span>
-                <span className="text-[9px] px-1 rounded bg-amber-950 text-amber-300 border border-amber-800">
-                  Dev
-                </span>
               </button>
             )}
           </nav>
 
-          {/* Action Zone: Class Switcher (for students), Free Room Shortcut, Live Clock, Export & Print */}
-          <div className="flex items-center gap-2 shrink-0">
-            
-            {/* Student Class Switcher */}
-            {isStudent && onChangeClass && activeGroup && (
-              <button
-                onClick={onChangeClass}
-                title="Change active class / group"
-                className="no-print hidden sm:flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-md text-xs font-medium text-slate-300 hover:text-white transition-colors"
-              >
-                <span className="text-[10px] text-slate-400">Class:</span>
-                <span className="font-mono font-bold text-sky-400">{activeGroup.id}</span>
-              </button>
-            )}
-
-            {/* Official Moodle LMS link inside Student Portal */}
-            {isStudent && (
-              <a
-                href="https://moodle.ccun.edu.kh/login/index.php"
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Moodle"
-                className="no-print hidden md:flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-950/60 hover:bg-amber-900 border border-amber-800 text-amber-300 hover:text-white rounded-md text-xs font-semibold transition-colors"
-              >
-                <span>Moodle</span>
-                <ExternalLink className="w-3 h-3 text-amber-400" />
-              </a>
-            )}
-
-            {/* Monitor Make-up Booking trigger */}
+          {/* Right: Actions & User Settings Dropdown */}
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+            {/* Class Monitor: Book Class button */}
             {!isStudent && onOpenBookingModal && (
               <button
                 onClick={onOpenBookingModal}
                 title="Book Room for Make-up Class"
-                className="no-print hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700 rounded-md text-xs font-semibold text-emerald-300 hover:text-white transition-colors"
+                className="no-print flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/80 rounded-lg text-xs sm:text-sm font-bold text-white shadow-xs transition-colors cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span className="hidden xl:inline">Book Make-up Class</span>
-                <span className="xl:hidden">Book Room</span>
+                <Plus className="w-4 h-4" />
+                <span>Book Class</span>
               </button>
             )}
 
-            {/* Find Free Study Room button in Header (Building2 icon, NO AI star) */}
-            {onOpenFreeRooms && (
+            {/* Notification Bell */}
+            {onOpenInbox && (
               <button
-                onClick={onOpenFreeRooms}
-                title="Find a Free Study Room Right Now in Building A & J"
-                className="no-print hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-md text-xs font-medium text-slate-300 hover:text-white transition-colors"
+                onClick={onOpenInbox}
+                title="Notification Inbox"
+                className="no-print relative p-2 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80 rounded-lg text-sm transition-colors cursor-pointer"
               >
-                <Building2 className="w-3.5 h-3.5 text-sky-400" />
-                <span className="hidden lg:inline">Free Rooms</span>
-              </button>
-            )}
-
-            {/* Cambodia Time Status */}
-            <div className="hidden lg:flex items-center gap-2 px-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-md text-xs">
-              <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-              <div className="flex items-center gap-1.5">
-                <span className="font-mono tabular-nums font-medium text-slate-200">
-                  {timeInfo.timeString}
-                </span>
-                <span className="text-slate-400">UTC+7</span>
-              </div>
-              <span className="text-slate-600">|</span>
-              <span className={`text-[11px] font-medium ${
-                activeSessionsCount > 0 
-                  ? 'text-emerald-400' 
-                  : 'text-slate-400'
-              }`}>
-                {activeSessionsCount > 0 ? `${activeSessionsCount} in session` : 'No live classes'}
-              </span>
-            </div>
-
-            {/* Calendar Export Button (.ics) */}
-            {activeGroup && (
-              <button
-                onClick={handleExportIcs}
-                title={`Export ${activeGroup.id} schedule to Google/Apple Calendar (.ics)`}
-                className="no-print hidden sm:flex items-center gap-1.5 p-2 text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-md text-xs font-medium transition-colors"
-              >
-                {downloadSuccess ? (
-                  <Check className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <Download className="w-4 h-4 text-sky-400" />
+                <Bell className="w-4 h-4 text-slate-200" />
+                {unreadNotificationsCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4.5 min-w-[18px] px-1 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white shadow-xs">
+                    {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                  </span>
                 )}
-                <span className="hidden xl:inline">Export .ics</span>
               </button>
             )}
 
-            {/* Print Button */}
-            <button
-              onClick={() => window.print()}
-              aria-label="Print Schedule"
-              title="Print Schedule / Export PDF"
-              className="no-print p-2 text-slate-400 hover:text-slate-100 hover:bg-slate-800 border border-slate-700 rounded-md transition-colors"
-            >
-              <Printer className="w-4 h-4" />
-            </button>
+            {/* User Profile Pill with Settings Menu */}
+            {userProfile ? (
+              <div className="relative no-print" ref={userMenuRef}>
+                <button
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-750 border border-slate-700 text-sm transition-all cursor-pointer"
+                  title="Account & Settings"
+                >
+                  <div className="w-6.5 h-6.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center text-xs font-bold shrink-0">
+                    {userProfile.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'U'}
+                  </div>
+                  <div className="hidden sm:block text-left">
+                    <div className="font-semibold text-white truncate max-w-[120px] text-xs sm:text-sm">
+                      {userProfile.displayName || userProfile.email.split('@')[0]}
+                    </div>
+                  </div>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Settings Dropdown Menu */}
+                {showUserMenu && (
+                  <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150 text-sm">
+                    
+                    {/* User Info Header */}
+                    <div className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl mb-2">
+                      <div className="font-bold text-white text-base truncate">
+                        {userProfile.displayName}
+                      </div>
+                      <div className="text-xs text-slate-400 font-mono truncate">
+                        {userProfile.email}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className={`text-[11px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                          userProfile.role === 'admin'
+                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                            : userProfile.role === 'monitor'
+                            ? 'bg-sky-950 text-sky-300 border border-sky-800'
+                            : 'bg-slate-800 text-slate-300'
+                        }`}>
+                          {userProfile.role === 'admin' ? 'Bongthom' : userProfile.role}
+                        </span>
+                        {userProfile.year && (
+                          <span className={`text-[11px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider flex items-center gap-1 ${
+                            userProfile.year === 'Alumni'
+                              ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                              : 'bg-sky-950 text-sky-300 border border-sky-800'
+                          }`}>
+                            {userProfile.year === 'Alumni' && <Award className="w-3 h-3 text-amber-400" />}
+                            <span>{userProfile.year}</span>
+                          </span>
+                        )}
+                        {userProfile.groupId && userProfile.year !== 'Alumni' && (
+                          <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-850 border border-slate-700 text-slate-200">
+                            {userProfile.groupId}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="space-y-1">
+                      {userProfile.role === 'admin' && onOpenAdminDashboard && (
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            onOpenAdminDashboard();
+                          }}
+                          className="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left text-amber-300 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer text-sm"
+                        >
+                          <ShieldCheck className="w-4 h-4 text-amber-400" />
+                          <span>Bongthom Dashboard</span>
+                        </button>
+                      )}
+
+                      {onChangeClass && (
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            onChangeClass();
+                          }}
+                          className="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left text-slate-200 hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer text-sm font-medium"
+                        >
+                          <GraduationCap className="w-4 h-4 text-sky-400" />
+                          <span>Academic Status & Promotion</span>
+                        </button>
+                      )}
+
+                      {onLogout && (
+                        <div className="pt-1 mt-1 border-t border-slate-800">
+                          <button
+                            onClick={() => {
+                              setShowUserMenu(false);
+                              onLogout();
+                            }}
+                            className="w-full px-3 py-2 rounded-lg hover:bg-red-950/60 text-left text-red-300 hover:text-red-200 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer text-sm"
+                          >
+                            <LogOut className="w-4 h-4 text-red-400" />
+                            <span>Sign Out</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                )}
+              </div>
+            ) : (
+              onOpenAuthModal && (
+                <button
+                  onClick={onOpenAuthModal}
+                  className="no-print flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-sm font-bold shadow-xs transition-colors cursor-pointer"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Sign In</span>
+                </button>
+              )
+            )}
           </div>
 
         </div>
 
-        {/* Mobile Navigation bar */}
-        <div className="no-print md:hidden flex items-center py-2 border-t border-slate-800 overflow-x-auto gap-1.5 scrollbar-none">
-          {onReturnHome && (
-            <button
-              onClick={onReturnHome}
-              className="px-2.5 py-1.5 text-xs font-semibold rounded bg-slate-800 text-slate-200 hover:text-white whitespace-nowrap flex items-center gap-1 shrink-0"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Home</span>
-            </button>
-          )}
-
+        {/* Mobile View Switcher Tabs (Only visible on small screens) */}
+        <div className="sm:hidden flex items-center justify-around py-2 border-t border-slate-800/60 text-sm overflow-x-auto">
           <button
             onClick={() => onSelectMode('matrix')}
-            className={`px-3 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 transition-colors ${
-              activeMode === 'matrix'
-                ? 'bg-slate-100 text-slate-900 font-bold'
-                : 'text-slate-400 hover:text-slate-200 bg-slate-850/60'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+              activeMode === 'matrix' ? 'text-sky-300 bg-sky-950/80 border border-sky-800' : 'text-slate-400'
             }`}
           >
-            Matrix
+            Timetable
           </button>
-
-          {!isStudent && (
-            <>
-              <button
-                onClick={() => onSelectMode('lecturer')}
-                className={`px-3 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 transition-colors ${
-                  activeMode === 'lecturer'
-                    ? 'bg-slate-100 text-slate-900 font-bold'
-                    : 'text-slate-400 hover:text-slate-200 bg-slate-850/60'
-                }`}
-              >
-                Lecturers
-              </button>
-              <button
-                onClick={() => onSelectMode('room')}
-                className={`px-3 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 transition-colors ${
-                  activeMode === 'room'
-                    ? 'bg-slate-100 text-slate-900 font-bold'
-                    : 'text-slate-400 hover:text-slate-200 bg-slate-850/60'
-                }`}
-              >
-                Rooms
-              </button>
-            </>
-          )}
-
           <button
             onClick={() => onSelectMode('agenda')}
-            className={`px-3 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 transition-colors ${
-              activeMode === 'agenda'
-                ? 'bg-slate-100 text-slate-900 font-bold'
-                : 'text-slate-400 hover:text-slate-200 bg-slate-850/60'
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+              activeMode === 'agenda' ? 'text-sky-300 bg-sky-950/80 border border-sky-800' : 'text-slate-400'
             }`}
           >
             Agenda
           </button>
-
-          {isStudent && (
-            <button
-              onClick={() => (onOpenClubModal ? onOpenClubModal() : onSelectMode('clubs'))}
-              className="px-2.5 py-1.5 text-xs font-medium rounded whitespace-nowrap shrink-0 text-slate-400 bg-slate-850/60 flex items-center gap-1"
-            >
-              <span>Clubs</span>
-              <span className="text-[9px] px-1 rounded bg-amber-950 text-amber-300 border border-amber-800">
-                Dev
-              </span>
-            </button>
-          )}
-
-          {/* Student Class Switcher on Mobile */}
-          {isStudent && onChangeClass && activeGroup && (
-            <button
-              onClick={onChangeClass}
-              className="px-2.5 py-1.5 text-xs font-medium rounded bg-sky-950/80 border border-sky-800 text-sky-300 whitespace-nowrap flex items-center gap-1 shrink-0"
-              title="Change your class"
-            >
-              <span className="text-[10px] text-slate-400">Class:</span>
-              <span className="font-mono font-bold text-sky-300">{activeGroup.id}</span>
-            </button>
-          )}
-
-          {/* Monitor Make-up Booking trigger on Mobile */}
-          {!isStudent && onOpenBookingModal && (
-            <button
-              onClick={onOpenBookingModal}
-              className="px-2.5 py-1.5 text-xs font-medium rounded bg-emerald-950 border border-emerald-700 text-emerald-300 whitespace-nowrap flex items-center gap-1 shrink-0"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Book</span>
-            </button>
-          )}
-
-          {onOpenFreeRooms && (
-            <button
-              onClick={onOpenFreeRooms}
-              className="px-2.5 py-1.5 text-xs font-medium rounded bg-slate-800 text-slate-300 border border-slate-700 whitespace-nowrap flex items-center gap-1 shrink-0 hover:text-white"
-            >
-              <Building2 className="w-3.5 h-3.5 text-sky-400" />
-              <span>Rooms</span>
-            </button>
+          {!isStudent && (
+            <>
+              <button
+                onClick={() => onSelectMode('room')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                  activeMode === 'room' ? 'text-sky-300 bg-sky-950/80 border border-sky-800' : 'text-slate-400'
+                }`}
+              >
+                Rooms
+              </button>
+              <button
+                onClick={() => onSelectMode('lecturer')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                  activeMode === 'lecturer' ? 'text-sky-300 bg-sky-950/80 border border-sky-800' : 'text-slate-400'
+                }`}
+              >
+                Lecturers
+              </button>
+            </>
           )}
         </div>
 

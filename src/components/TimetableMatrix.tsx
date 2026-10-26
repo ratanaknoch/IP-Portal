@@ -7,7 +7,6 @@ import {
   getCambodiaTime,
   getSlotLiveStatus
 } from '../data/scheduleData';
-import { downloadCohortIcs } from '../utils/calendarExport';
 import { MakeupClassBooking } from './MakeupClassBookingModal';
 import { 
   Search, 
@@ -16,7 +15,6 @@ import {
   CheckCircle2, 
   Clock, 
   Bookmark, 
-  Download, 
   Calendar, 
   Printer, 
   Check,
@@ -54,7 +52,6 @@ export function TimetableMatrix({
   onOpenFreeRooms,
   makeupBookings = []
 }: TimetableMatrixProps) {
-  const [downloadSuccess, setDownloadSuccess] = useState(false);
   const cambodiaTime = getCambodiaTime();
   const days = SCHEDULE_DATA.meta.days;
   const timeSlots = SCHEDULE_DATA.meta.timeSlots;
@@ -74,14 +71,18 @@ export function TimetableMatrix({
     const regular = activeGroup.schedule.find(s => s.day === day && s.time === slot);
     if (regular) return regular;
 
-    const makeup = makeupBookings.find(m => m.groupId === activeGroup.id && m.day === day && m.time === slot);
+    const makeup = makeupBookings.find(m => 
+      m.groupId === activeGroup.id && 
+      m.day === day && 
+      (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot)))
+    );
     if (makeup) {
       return {
         day: makeup.day,
-        time: makeup.time,
+        time: slot,
         course: `${makeup.course} [Make-up]`,
         type: 'Lecture',
-        lecturer: `Reserved by ${makeup.bookedBy}${makeup.date ? ` (${makeup.date})` : ''}`,
+        lecturer: `Booked by ${makeup.bookedBy}${makeup.date ? ` (${makeup.date})` : ''}`,
         room: makeup.room,
         groupId: makeup.groupId,
         groupName: activeGroup.name,
@@ -103,191 +104,106 @@ export function TimetableMatrix({
     );
   };
 
-  const handleExportIcs = () => {
-    downloadCohortIcs(activeGroup);
-    setDownloadSuccess(true);
-    setTimeout(() => setDownloadSuccess(false), 3500);
-  };
-
   return (
     <div className="space-y-4">
       {/* Controls Strip (No-print) */}
-      <div className="no-print bg-slate-900 border border-slate-800 rounded-md p-4 space-y-3">
+      <div className="no-print bg-slate-900 border border-slate-800 rounded-md p-2.5 sm:p-3 space-y-2 shadow-xs">
         
-        {/* If Student Mode: Only show their class, with a clean "Change Class" option (no other cohorts/generations) */}
+        {/* If Student Mode: Compact Class Info & Direct Switcher */}
         {isStudentMode ? (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                 My Class:
               </span>
-              <div className="flex items-center gap-1.5 bg-sky-950/80 border border-sky-800 px-3 py-1 rounded-md">
+              <div className="flex items-center gap-1.5 bg-sky-950/80 border border-sky-800 px-2.5 py-1 rounded-md">
                 <span className="text-xs font-bold font-mono text-sky-300">{activeGroup.id}</span>
               </div>
               {onChangeClass && (
                 <button
                   onClick={onChangeClass}
-                  className="flex items-center gap-1 px-2 py-1 text-xs text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-md transition-colors"
                 >
-                  <RefreshCw className="w-3 h-3" />
-                  <span>Change</span>
+                  <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
+                  <span>Change Class</span>
                 </button>
               )}
             </div>
 
-            {/* Right Actions: Find Free Room, Moodle, Export .ics & Print */}
-            <div className="flex items-center gap-2 flex-wrap">
-              {onOpenFreeRooms && (
-                <button
-                  onClick={onOpenFreeRooms}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-200 hover:text-white transition-colors"
-                >
-                  <Building2 className="w-3.5 h-3.5 text-sky-400" />
-                  <span>Find Free Room</span>
-                </button>
-              )}
-
-              <a
-                href="https://moodle.ccun.edu.kh/login/index.php"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded bg-amber-950/60 hover:bg-amber-900 border border-amber-800 text-amber-300 hover:text-white transition-colors"
-              >
-                <span>Moodle</span>
-                <ExternalLink className="w-3 h-3 text-amber-400" />
-              </a>
-
-              <button
-                onClick={handleExportIcs}
-                title="Download iCalendar (.ics) for Google/Apple Calendar"
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-100 hover:text-white transition-colors"
-              >
-                {downloadSuccess ? (
-                  <>
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    <span className="text-emerald-300">.ics saved!</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-3.5 h-3.5 text-sky-400" />
-                    <span>Export .ics</span>
-                  </>
-                )}
-              </button>
-
-              <button
-                onClick={() => window.print()}
-                title="Print Schedule / Export PDF"
-                className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-700 rounded transition-colors"
-              >
-                <Printer className="w-4 h-4" />
-              </button>
+            <div className="text-[11px] text-slate-400 font-medium">
+              {activeGroup.schedule.length} sessions/week
             </div>
           </div>
         ) : (
-          /* Class Monitor Mode: Full administrative cohort switcher and group selector */
-          <>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs font-semibold text-slate-400 mr-1 uppercase tracking-wider">
+          /* Class Monitor Mode: Clean Dropdowns for Cohort and Class/Group */
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Cohort Dropdown */}
+              <div className="flex items-center gap-1.5">
+                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                   Cohort:
-                </span>
-                {['ALL', 'I2', 'I3', 'I4'].map((cohort) => (
-                  <button
-                    key={cohort}
-                    onClick={() => {
-                      onSelectCohort(cohort);
-                      if (cohort !== 'ALL') {
-                        const firstGroup = SCHEDULE_DATA.groups.find(g => g.cohort === cohort);
-                        if (firstGroup) onSelectGroup(firstGroup.id);
-                      }
-                    }}
-                    className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap ${
-                      selectedCohort === cohort
-                        ? 'bg-slate-100 text-slate-900 font-bold'
-                        : 'text-slate-400 hover:text-slate-200 border border-slate-800'
-                    }`}
-                  >
-                    {cohort === 'ALL' ? 'All' : cohort}
-                  </button>
-                ))}
+                </label>
+                <select
+                  value={selectedCohort}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    onSelectCohort(val);
+                    if (val !== 'ALL') {
+                      const firstGroup = SCHEDULE_DATA.groups.find(g => g.cohort === val);
+                      if (firstGroup) onSelectGroup(firstGroup.id);
+                    }
+                  }}
+                  className="px-2.5 py-1 text-xs font-semibold bg-slate-800 border border-slate-700 rounded-md text-slate-100 hover:bg-slate-750 focus:outline-hidden focus:border-sky-500 cursor-pointer shadow-xs"
+                >
+                  <option value="ALL">All Cohorts</option>
+                  <option value="I1">I1</option>
+                  <option value="I2">I2</option>
+                  <option value="I3">I3</option>
+                  <option value="I4">I4</option>
+                  <option value="I5">I5</option>
+                  <option value="Alumni">Alumni</option>
+                </select>
               </div>
 
-              {/* Right Actions: Export .ics & Print */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {onSetMyCohort && (
-                  <button
-                    onClick={() => onSetMyCohort(activeGroup.id)}
-                    title={isMyCohort ? "Currently pinned as your default cohort" : "Pin this group as your default cohort"}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded border transition-colors ${
-                      isMyCohort
-                        ? 'bg-sky-950/80 border-sky-600 text-sky-300'
-                        : 'bg-slate-800/80 border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'
-                    }`}
-                  >
-                    <Bookmark className={`w-3.5 h-3.5 ${isMyCohort ? 'fill-sky-400 text-sky-400' : ''}`} />
-                    <span>{isMyCohort ? 'Pinned' : 'Pin Group'}</span>
-                  </button>
-                )}
-
-                <button
-                  onClick={handleExportIcs}
-                  title="Download iCalendar (.ics) for Google/Apple Calendar"
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded bg-slate-800 hover:bg-slate-750 border border-slate-700 text-slate-100 hover:text-white transition-colors"
+              {/* Class / Group Dropdown */}
+              <div className="flex items-center gap-1.5">
+                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Class:
+                </label>
+                <select
+                  value={selectedGroup}
+                  onChange={(e) => onSelectGroup(e.target.value)}
+                  className="px-2.5 py-1 text-xs font-bold font-mono bg-slate-800 border border-slate-700 rounded-md text-sky-300 hover:bg-slate-750 focus:outline-hidden focus:border-sky-500 cursor-pointer shadow-xs"
                 >
-                  {downloadSuccess ? (
-                    <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="text-emerald-300">Downloaded .ics!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Download className="w-3.5 h-3.5 text-sky-400" />
-                      <span>Export Calendar (.ics)</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  onClick={() => window.print()}
-                  title="Print Schedule / Export PDF"
-                  className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-700 rounded transition-colors"
-                >
-                  <Printer className="w-4 h-4" />
-                </button>
+                  {filteredGroups.map(g => (
+                    <option key={g.id} value={g.id}>
+                      {g.id}
+                    </option>
+                  ))}
+                </select>
               </div>
+
+              {/* Pin default class shortcut */}
+              {onSetMyCohort && (
+                <button
+                  onClick={() => onSetMyCohort(activeGroup.id)}
+                  title={isMyCohort ? "Default pinned class" : "Pin this class as your default"}
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
+                    isMyCohort
+                      ? 'bg-sky-950/80 border-sky-600 text-sky-300'
+                      : 'bg-slate-800 hover:bg-slate-750 border-slate-700 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Bookmark className={`w-3.5 h-3.5 ${isMyCohort ? 'fill-sky-400 text-sky-400' : ''}`} />
+                  <span>{isMyCohort ? 'Default' : 'Pin Class'}</span>
+                </button>
+              )}
             </div>
 
-            {/* Group Selector Bar (Only in Class Monitor Mode) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-2 border-t border-slate-800">
-              <span className="text-xs font-semibold text-slate-400 mr-1 uppercase tracking-wider shrink-0">
-                Group:
-              </span>
-              {filteredGroups.map((group) => {
-                const isSelected = group.id === activeGroup.id;
-                const isGroupMyCohort = myCohort === group.id;
-                return (
-                  <button
-                    key={group.id}
-                    onClick={() => onSelectGroup(group.id)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-                      isSelected
-                        ? 'bg-slate-100 text-slate-900 font-bold shadow-xs'
-                        : 'text-slate-300 hover:bg-slate-800 border border-slate-800'
-                    }`}
-                  >
-                    <span>{group.id}</span>
-                    {isGroupMyCohort && (
-                      <Bookmark className="w-3 h-3 fill-sky-400 text-sky-400 shrink-0" />
-                    )}
-                    <span className="text-[10px] opacity-75 hidden sm:inline">
-                      ({group.schedule.length} slots)
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="text-[11px] text-slate-400 font-medium">
+              Showing <span className="font-bold text-slate-200">{activeGroup.id}</span> · {activeGroup.schedule.length} weekly sessions
             </div>
-          </>
+          </div>
         )}
 
       </div>
@@ -322,7 +238,7 @@ export function TimetableMatrix({
           <table className="w-full min-w-[760px] md:min-w-full border-collapse text-left print-table">
             <thead>
               <tr className="bg-slate-800/95 border-b border-slate-700">
-                <th className="sticky left-0 z-20 bg-slate-800 p-2.5 text-xs font-semibold uppercase tracking-wider text-slate-300 w-28 text-center shrink-0 border-r border-slate-700 shadow-[2px_0_6px_rgba(0,0,0,0.4)]">
+                <th className="sticky left-0 z-20 bg-slate-800 p-3 text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-200 w-32 text-center shrink-0 border-r border-slate-700 shadow-[2px_0_6px_rgba(0,0,0,0.4)]">
                   Time Slot
                 </th>
                 {days.map((day) => {
@@ -330,16 +246,16 @@ export function TimetableMatrix({
                   return (
                     <th 
                       key={day}
-                      className={`p-2.5 text-xs font-semibold text-center border-r border-slate-700 last:border-r-0 ${
+                      className={`p-3 text-xs sm:text-sm font-bold text-center border-r border-slate-700 last:border-r-0 ${
                         isToday 
-                          ? 'bg-slate-700 text-slate-100 font-bold' 
-                          : 'text-slate-300'
+                          ? 'bg-slate-700 text-slate-100' 
+                          : 'text-slate-200'
                       }`}
                     >
                       <div className="flex items-center justify-center gap-1.5">
                         <span>{day}</span>
                         {isToday && (
-                          <span className="text-[10px] uppercase font-bold text-emerald-400 px-1 py-0.2 rounded bg-emerald-950/80 border border-emerald-800">
+                          <span className="text-xs uppercase font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-800">
                             Today
                           </span>
                         )}
@@ -349,7 +265,7 @@ export function TimetableMatrix({
                 })}
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800 text-xs">
+            <tbody className="divide-y divide-slate-800 text-sm">
               {timeSlots.map((slot, index) => {
                 const isAfternoonBreak = index === 4; // Slot 13h00 starts afternoon
                 return (
@@ -360,9 +276,9 @@ export function TimetableMatrix({
                     }`}
                   >
                     {/* Time slot sticky column */}
-                    <td className="sticky left-0 z-10 p-2 font-mono tabular-nums text-xs text-slate-300 font-medium bg-slate-900 text-center border-r border-slate-800 whitespace-nowrap shadow-[2px_0_6px_rgba(0,0,0,0.35)]">
-                      <div className="font-bold text-slate-200">{slot}</div>
-                      <div className="text-[10px] text-slate-400 font-sans">
+                    <td className="sticky left-0 z-10 p-2.5 font-mono tabular-nums text-sm text-slate-200 font-semibold bg-slate-900 text-center border-r border-slate-800 whitespace-nowrap shadow-[2px_0_6px_rgba(0,0,0,0.35)]">
+                      <div className="font-bold text-slate-100">{slot}</div>
+                      <div className="text-xs text-slate-400 font-sans mt-0.5">
                         {index < 4 ? 'Morning' : 'Afternoon'}
                       </div>
                     </td>
@@ -378,11 +294,11 @@ export function TimetableMatrix({
                         return (
                           <td 
                             key={day}
-                            className={`p-2 text-center text-slate-700 border-r border-slate-800 last:border-r-0 ${
+                            className={`p-2.5 text-center text-slate-700 border-r border-slate-800 last:border-r-0 ${
                               isToday ? 'bg-slate-900/40' : ''
                             }`}
                           >
-                            <span className="select-none font-mono text-[11px]">—</span>
+                            <span className="select-none font-mono text-sm">—</span>
                           </td>
                         );
                       }
@@ -393,7 +309,7 @@ export function TimetableMatrix({
                       return (
                         <td 
                           key={day}
-                          className={`p-1.5 border-r border-slate-800 last:border-r-0 align-top ${
+                          className={`p-2 border-r border-slate-800 last:border-r-0 align-top ${
                             isToday ? 'bg-slate-900/30' : ''
                           }`}
                         >
@@ -404,7 +320,7 @@ export function TimetableMatrix({
                               groupName: activeGroup.name,
                               cohort: activeGroup.cohort
                             })}
-                            className={`p-2 rounded border cursor-pointer transition-all duration-150 ${
+                            className={`p-2.5 rounded-lg border cursor-pointer transition-all duration-150 ${
                               isMakeup
                                 ? 'bg-amber-950/40 border-amber-800 text-amber-200 hover:border-amber-500'
                                 : typeStyle.card
@@ -419,34 +335,34 @@ export function TimetableMatrix({
                             }`}
                           >
                             {/* Type and live status */}
-                            <div className="flex items-center justify-between gap-1 mb-1">
-                              <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                            <div className="flex items-center justify-between gap-1 mb-1.5">
+                              <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
                                 isMakeup ? 'bg-amber-950 text-amber-300 border border-amber-800' : typeStyle.badge
                               }`}>
                                 {isMakeup ? 'Make-up' : session.type}
                               </span>
                               {status?.isCurrent && (
-                                <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-300">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                <span className="flex items-center gap-1 text-xs font-bold text-emerald-300">
+                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                                   NOW
                                 </span>
                               )}
                             </div>
 
                             {/* Course Title */}
-                            <h4 className="font-semibold text-slate-100 leading-snug line-clamp-2">
+                            <h4 className="font-bold text-slate-100 leading-snug line-clamp-2 text-sm sm:text-[15px]">
                               {session.course}
                             </h4>
 
                             {/* Lecturer & Room details */}
-                            <div className="mt-2 pt-1.5 border-t border-slate-700/60 space-y-1 text-[11px]">
-                              <div className="flex items-center gap-1 text-slate-300 truncate" title={session.lecturer}>
-                                <User className="w-3 h-3 text-slate-400 shrink-0" />
-                                <span className="truncate">{session.lecturer}</span>
+                            <div className="mt-2 pt-1.5 border-t border-slate-700/60 space-y-1 text-xs">
+                              <div className="flex items-center gap-1.5 text-slate-200 truncate" title={session.lecturer}>
+                                <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                <span className="truncate font-medium">{session.lecturer}</span>
                               </div>
-                              <div className="flex items-center gap-1 font-mono text-[10px] text-slate-400 truncate">
-                                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                                <span>{session.room}</span>
+                              <div className="flex items-center gap-1.5 font-mono text-xs text-slate-300 truncate font-semibold">
+                                <MapPin className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                                <span>{session.room || "Room TBD"}</span>
                               </div>
                             </div>
 

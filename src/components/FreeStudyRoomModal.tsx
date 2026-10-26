@@ -16,6 +16,7 @@ import {
   SCHEDULE_DATA, 
   ALL_SESSIONS, 
   ALL_ROOMS, 
+  FREE_STUDY_ROOMS,
   getCambodiaTime, 
   getCurrentOrClosestSlot, 
   parseSlotMinutes 
@@ -62,13 +63,15 @@ export function FreeStudyRoomModal({
     const timeSlots = SCHEDULE_DATA.meta.timeSlots;
     const currentSlotIndex = timeSlots.indexOf(selectedSlot);
 
-    return ALL_ROOMS.map(room => {
+    return FREE_STUDY_ROOMS.map(room => {
       // Find session in this room at this slot & day
       const currentSession = ALL_SESSIONS.find(
         s => s.room.trim() === room && s.day === selectedDay && s.time === selectedSlot
       );
       const currentMakeup = makeupBookings.find(
-        m => m.room.trim() === room && m.day === selectedDay && m.time === selectedSlot
+        m => m.room.trim() === room && 
+          m.day === selectedDay && 
+          (m.timeSlots ? m.timeSlots.includes(selectedSlot) : (m.time === selectedSlot || m.time.includes(selectedSlot)))
       );
 
       const isFree = !currentSession && !currentMakeup;
@@ -84,7 +87,9 @@ export function FreeStudyRoomModal({
             s => s.room.trim() === room && s.day === selectedDay && s.time === slotToCheck
           );
           const hasMakeup = makeupBookings.some(
-            m => m.room.trim() === room && m.day === selectedDay && m.time === slotToCheck
+            m => m.room.trim() === room && 
+              m.day === selectedDay && 
+              (m.timeSlots ? m.timeSlots.includes(slotToCheck) : (m.time === slotToCheck || m.time.includes(slotToCheck)))
           );
           if (hasClass || hasMakeup) {
             freeUntil = slotToCheck.split('-')[0].trim();

@@ -53,7 +53,7 @@ export function LecturerView({
   return (
     <div className="space-y-4">
       {/* Selector & Instructor Stats Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-md p-4 space-y-4 shadow-xs">
+      <div className="bg-slate-900 border border-slate-800 rounded-md p-3 space-y-3 shadow-xs">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <User className="w-5 h-5 text-slate-400" />
@@ -214,7 +214,7 @@ export function LecturerView({
                         <div className="flex items-center gap-3 shrink-0">
                           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700 text-xs font-mono text-slate-300">
                             <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                            <span>{session.room}</span>
+                            <span>{session.room || "Room TBD"}</span>
                           </div>
                         </div>
                       </div>

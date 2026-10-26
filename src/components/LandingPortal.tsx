@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import TechText from './TechText';
 import DotGrid from './DotGrid';
+import MetallicPaint from './MetallicPaint';
 import { 
   CalendarDays, 
   Users, 
@@ -14,9 +15,15 @@ import {
   Lock,
   Bookmark,
   ShieldCheck,
-  Check
+  Check,
+  Bell,
+  LogIn,
+  LogOut,
+  UserCheck,
+  KeyRound
 } from 'lucide-react';
 import { getCambodiaTime, SCHEDULE_DATA } from '../data/scheduleData';
+import { UserProfile } from '../lib/firebase';
 
 interface LandingPortalProps {
   onEnterClassMonitor: (genPassword?: string) => void;
@@ -26,6 +33,14 @@ interface LandingPortalProps {
   onSelectMyCohort: (groupId: string) => void;
   isMonitorAuthorized: boolean;
   onAuthorizeMonitor: (genPassword: string) => void;
+  userProfile?: UserProfile | null;
+  unreadNotificationsCount?: number;
+  onOpenAuthModal: () => void;
+  onOpenInbox: () => void;
+  onOpenAdminDashboard?: () => void;
+  onLogout: () => void;
+  onUpgradeToMonitor?: (password: string) => Promise<boolean>;
+  onOpenAcademicStatus?: () => void;
 }
 
 export function LandingPortal({
@@ -35,11 +50,20 @@ export function LandingPortal({
   myCohort,
   onSelectMyCohort,
   isMonitorAuthorized,
-  onAuthorizeMonitor
+  onAuthorizeMonitor,
+  userProfile,
+  unreadNotificationsCount = 0,
+  onOpenAuthModal,
+  onOpenInbox,
+  onOpenAdminDashboard,
+  onLogout,
+  onUpgradeToMonitor,
+  onOpenAcademicStatus
 }: LandingPortalProps) {
   const [showClubModal, setShowClubModal] = useState(false);
   const [showMonitorAuthModal, setShowMonitorAuthModal] = useState(false);
   const [showClassSelectModal, setShowClassSelectModal] = useState(false);
+  const [showRestrictedNotice, setShowRestrictedNotice] = useState(false);
   const [monitorPinInput, setMonitorPinInput] = useState('');
   const [pinError, setPinError] = useState('');
 
@@ -50,43 +74,64 @@ export function LandingPortal({
   const portalBlueColor = '#38bdf8';
   const accentHighlight = '#38bdf8';
 
-  // Allowed class monitor passwords: "IPGEN1", "IPGEN2", "IPGEN3"
-  const VALID_MONITOR_PASSWORDS = ['IPGEN1', 'IPGEN2', 'IPGEN3'];
+  const isMonitorOrAdmin = userProfile?.role === 'monitor' || userProfile?.role === 'admin' || isMonitorAuthorized;
 
   const handleClassMonitorClick = () => {
-    if (isMonitorAuthorized) {
+    if (isMonitorOrAdmin) {
       onEnterClassMonitor();
-    } else {
-      setPinError('');
-      setMonitorPinInput('');
-      setShowMonitorAuthModal(true);
+      return;
     }
+
+    // If user is not logged in, prompt to log in / register
+    if (!userProfile) {
+      onOpenAuthModal();
+      return;
+    }
+
+    // If logged in as student, show the monitor verification modal with "Bigboss@67"
+    setPinError('');
+    setMonitorPinInput('');
+    setShowMonitorAuthModal(true);
   };
 
-  const handleVerifyMonitor = (e: React.FormEvent) => {
+  const handleVerifyMonitor = async (e: React.FormEvent) => {
     e.preventDefault();
-    const clean = monitorPinInput.trim().toUpperCase();
-    if (VALID_MONITOR_PASSWORDS.includes(clean)) {
+    const clean = monitorPinInput.trim();
+    
+    // Strict password requirement: "Bigboss@67"
+    if (clean === 'Bigboss@67') {
+      if (onUpgradeToMonitor) {
+        await onUpgradeToMonitor(clean);
+      }
       onAuthorizeMonitor(clean);
       setShowMonitorAuthModal(false);
       onEnterClassMonitor(clean);
     } else {
-      setPinError('Invalid password. Access restricted to class monitors.');
+      setPinError('Invalid password. Class Monitor password is required.');
     }
   };
 
   const hasSavedClass = () => {
     try {
-      return localStorage.getItem('itc_student_class_picked') === 'true' && Boolean(localStorage.getItem('itc_my_cohort'));
+      return (
+        Boolean(userProfile?.groupId) ||
+        (localStorage.getItem('itc_student_class_picked') === 'true' && Boolean(localStorage.getItem('itc_my_cohort')))
+      );
     } catch {
       return false;
     }
   };
 
+  const targetGroup = userProfile?.groupId || myCohort;
+
   const handleStudentPortalClick = () => {
-    // Only ask once natively; if already saved, enter directly
+    // Strictly require an account to access student timetable
+    if (!userProfile) {
+      onOpenAuthModal();
+      return;
+    }
     if (hasSavedClass()) {
-      onEnterStudentSchedule(myCohort);
+      onEnterStudentSchedule(targetGroup);
     } else {
       setShowClassSelectModal(true);
     }
@@ -126,7 +171,7 @@ export function LandingPortal({
       </div>
 
       {/* Top Navbar */}
-      <nav className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between border-b border-slate-800/80 backdrop-blur-xs">
+      <nav className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between border-b border-slate-800/80 backdrop-blur-xs">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-lg bg-white/90 backdrop-blur-sm p-0.5 shadow-md shadow-black/40 border border-white/25 flex items-center justify-center shrink-0">
             <img
@@ -146,24 +191,95 @@ export function LandingPortal({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 sm:gap-3">
-          <a
-            href="https://discord.gg/QH3rwPbwRm"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Join Community Discord Server"
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-[#5865F2]/20 hover:bg-[#5865F2]/30 text-indigo-200 hover:text-white border border-[#5865F2]/40 rounded-md text-xs font-medium transition-colors"
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Notifications Inbox Bell */}
+          <button
+            onClick={onOpenInbox}
+            title="Account Inbox & Announcements"
+            className="relative p-2 rounded-md bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
           >
-            <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 127.14 96.36">
-              <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" />
-            </svg>
-            <span className="hidden sm:inline">Community Discord</span>
-          </a>
+            <Bell className="w-4 h-4" />
+            {unreadNotificationsCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-sky-500 text-slate-950 text-[10px] font-bold flex items-center justify-center animate-pulse">
+                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+              </span>
+            )}
+          </button>
 
-          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 border border-slate-800 rounded-md text-xs text-slate-200">
+          {/* User Account / Sign In Pill */}
+          {userProfile ? (
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <button
+                type="button"
+                onClick={onOpenAcademicStatus}
+                title="Click to view academic status & year promotion"
+                className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-850 border border-slate-800 hover:border-sky-500/50 rounded-lg text-xs cursor-pointer transition-all"
+              >
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                  userProfile.year === 'Alumni'
+                    ? 'bg-amber-500/20 border border-amber-400/40 text-amber-300'
+                    : 'bg-sky-500/20 border border-sky-400/40 text-sky-300'
+                }`}>
+                  {userProfile.displayName.charAt(0).toUpperCase()}
+                </div>
+                <div className="hidden sm:block text-left">
+                  <div className="font-semibold text-white truncate max-w-[120px] text-[11px]">
+                    {userProfile.displayName}
+                  </div>
+                  <div className="flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider">
+                    {userProfile.role === 'admin' ? (
+                      <span className="text-amber-400">Admin</span>
+                    ) : userProfile.year === 'Alumni' ? (
+                      <span className="text-amber-400 font-extrabold flex items-center gap-0.5">
+                        Alumni · Graduate
+                      </span>
+                    ) : userProfile.role === 'monitor' ? (
+                      <span className="text-sky-400">Monitor ({userProfile.year || userProfile.groupId})</span>
+                    ) : (
+                      <span className="text-slate-400">
+                        {userProfile.year ? `${userProfile.year} (${userProfile.groupId})` : userProfile.groupId}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </button>
+
+              {/* Bongthom Dashboard shortcut button if admin */}
+              {userProfile.role === 'admin' && onOpenAdminDashboard && (
+                <button
+                  onClick={onOpenAdminDashboard}
+                  title="Open Bongthom Dashboard"
+                  className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="hidden md:inline">Bongthom</span>
+                </button>
+              )}
+
+              {/* Logout button */}
+              <button
+                onClick={onLogout}
+                title="Sign Out"
+                className="p-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={onOpenAuthModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In / Register</span>
+            </button>
+          )}
+
+          {/* Cambodia Clock */}
+          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 border border-slate-800 rounded-md text-xs text-slate-200">
             <Clock className="w-3.5 h-3.5 text-sky-400" />
             <span className="font-mono tabular-nums font-semibold text-white">{cambodiaTime.timeString}</span>
-            <span className="text-slate-400">Phnom Penh (UTC+7)</span>
+            <span className="text-slate-400">Phnom Penh</span>
           </div>
         </div>
       </nav>
@@ -171,14 +287,21 @@ export function LandingPortal({
       {/* Hero Body */}
       <main className="relative z-10 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 flex flex-col justify-center items-center text-center">
         
-        {/* School Logo */}
-        <div className="mb-2 sm:mb-2.5 inline-flex items-center justify-center transition-transform duration-200 hover:scale-105">
-          <img
-            src="/assets/itc_front_tight.png"
-            alt="ITC School Logo"
-            className="w-24 h-24 sm:w-28 sm:h-28 md:w-30 md:h-30 object-contain drop-shadow-[0_10px_22px_rgba(0,0,0,0.65)]"
-            referrerPolicy="no-referrer"
-          />
+        {/* Interactive Metallic ITC Emblem Animation */}
+        <div className="mb-2 sm:mb-3 inline-flex items-center justify-center transition-transform duration-200 hover:scale-105">
+          <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 relative rounded-full overflow-hidden bg-slate-950/80 border border-slate-750 shadow-[0_12px_28px_rgba(0,0,0,0.7)] flex items-center justify-center">
+            <MetallicPaint
+              imageSrc="/assets/cropped-itc_tight.png"
+              color="#f8fafc"
+              edgeBend={0.82}
+              softness={0.16}
+              distortion={0.07}
+              speed={1.0}
+              mouseTilt={0.7}
+              scale={0.8}
+              className="w-full h-full"
+            />
+          </div>
         </div>
 
         {/* 3-Line Centered Hero Title */}
@@ -249,7 +372,7 @@ export function LandingPortal({
           </span>
         </div>
 
-        {/* 3 Primary Pathways - Concise & Clean (NO wordy descriptions per user instruction) */}
+        {/* 3 Primary Pathways */}
         <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
           
           {/* Card 1: Class Monitor Portal */}
@@ -277,7 +400,7 @@ export function LandingPortal({
 
             <div className="pt-6 mt-4 border-t border-slate-800 flex items-center justify-between text-xs font-semibold text-white">
               <span className="group-hover:translate-x-0.5 transition-transform text-slate-200 group-hover:text-white">
-                Enter as Class Monitor
+                {!userProfile ? 'Sign In Required' : isMonitorOrAdmin ? 'Enter Monitor Portal' : 'Enter as Monitor'}
               </span>
               <div className="w-7 h-7 rounded bg-slate-800 group-hover:bg-white group-hover:text-slate-900 flex items-center justify-center transition-colors">
                 <ArrowRight className="w-4 h-4" />
@@ -315,7 +438,7 @@ export function LandingPortal({
             </div>
           </div>
 
-          {/* Card 3: Student Portal (Under Dev per user request, but clickable to select class & enter) */}
+          {/* Card 3: Student Portal */}
           <div 
             onClick={handleStudentPortalClick}
             className="group cursor-pointer bg-slate-900/90 hover:bg-slate-900 border border-sky-900/70 hover:border-sky-400/80 rounded-lg p-5 shadow-lg transition-all duration-200 flex flex-col justify-between backdrop-blur-xs ring-1 ring-sky-500/20"
@@ -325,8 +448,8 @@ export function LandingPortal({
                 <div className="w-10 h-10 rounded-md bg-sky-500 text-slate-950 flex items-center justify-center shadow-xs font-bold">
                   <GraduationCap className="w-5 h-5" />
                 </div>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300 bg-amber-950/80 border border-amber-800 px-2 py-0.5 rounded">
-                  Under Dev
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-300 bg-sky-950/80 border border-sky-800 px-2 py-0.5 rounded">
+                  Personal Timetable
                 </span>
               </div>
 
@@ -339,7 +462,7 @@ export function LandingPortal({
 
             <div className="pt-6 mt-4 border-t border-slate-800 flex items-center justify-between text-xs font-semibold text-sky-400 group-hover:text-sky-300">
               <span className="group-hover:translate-x-0.5 transition-transform">
-                {hasSavedClass() ? `Enter Student Portal (${myCohort})` : 'Select Class & Enter'}
+                {!userProfile ? 'Sign In to Access' : `Enter (${targetGroup})`}
               </span>
               <div className="w-7 h-7 rounded bg-sky-950 text-sky-300 group-hover:bg-sky-500 group-hover:text-slate-950 flex items-center justify-center transition-colors">
                 <ArrowRight className="w-4 h-4" />
@@ -405,7 +528,7 @@ export function LandingPortal({
         </div>
       </footer>
 
-      {/* Class Monitor Authorization Modal with IPGEN1 / IPGEN2 / IPGEN3 */}
+      {/* Class Monitor Authorization Modal (Password: Bigboss@67) */}
       {showMonitorAuthModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-2xl space-y-4 text-white">
@@ -424,23 +547,16 @@ export function LandingPortal({
             <div>
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
-                  Access Restricted
+                  Password Required
                 </span>
-                <span className="text-xs text-slate-400">Class Monitor Portal</span>
               </div>
               <h3 className="text-base font-bold text-white">
-                Class Monitor Verification
+                Class Monitor Password
               </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Enter your designated monitor password to access administrative controls and make-up class booking.
-              </p>
             </div>
 
             <form onSubmit={handleVerifyMonitor} className="space-y-3 pt-1">
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Monitor Password
-                </label>
                 <input
                   type="password"
                   value={monitorPinInput}
@@ -449,7 +565,7 @@ export function LandingPortal({
                     setPinError('');
                   }}
                   placeholder="Enter monitor password"
-                  className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:ring-1 focus:ring-sky-400 font-mono tracking-wider"
+                  className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:ring-1 focus:ring-amber-400 font-mono tracking-wider"
                   autoFocus
                 />
                 {pinError && (
@@ -466,7 +582,7 @@ export function LandingPortal({
                   }}
                   className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
                 >
-                  I am a regular student
+                  Student Portal
                 </button>
                 <div className="flex gap-2">
                   <button
@@ -478,9 +594,9 @@ export function LandingPortal({
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 text-xs font-semibold bg-white text-slate-950 hover:bg-slate-200 rounded-md transition-colors"
+                    className="px-4 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-md transition-colors"
                   >
-                    Authorize & Enter
+                    Enter
                   </button>
                 </div>
               </div>
@@ -489,7 +605,7 @@ export function LandingPortal({
         </div>
       )}
 
-      {/* Student Class Selection Modal (Per user request: ask user to select their class so they only see their schedule) */}
+      {/* Student Class Selection Modal */}
       {showClassSelectModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-2xl space-y-4 text-white">
@@ -506,21 +622,15 @@ export function LandingPortal({
             </div>
 
             <div>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 mb-1.5 inline-block">
-                Under Development
-              </span>
               <h3 className="text-base font-bold text-white">
-                Select Your Class
+                Choose Class / Major
               </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                Choose your group to display only your personal class timetable. You can change it anytime inside your portal.
-              </p>
             </div>
 
-            {/* List of 7 Classes */}
-            <div className="space-y-2 max-h-64 overflow-y-auto pt-1 pr-1">
+            {/* List of 12 Classes */}
+            <div className="space-y-1.5 max-h-72 overflow-y-auto pt-1 pr-1">
               {SCHEDULE_DATA.groups.map((group) => {
-                const isSelected = myCohort === group.id;
+                const isSelected = targetGroup === group.id;
 
                 return (
                   <button
@@ -553,12 +663,12 @@ export function LandingPortal({
         </div>
       )}
 
-      {/* Under Development Modal for Student Club */}
+      {/* Student Club Modal */}
       {showClubModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-2xl space-y-4 text-white">
             <div className="flex items-start justify-between">
-              <div className="w-10 h-10 rounded-md bg-amber-950/80 border border-amber-800 flex items-center justify-center text-amber-300">
+              <div className="w-10 h-10 rounded-md bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-400">
                 <Users className="w-5 h-5" />
               </div>
               <button
@@ -570,23 +680,20 @@ export function LandingPortal({
             </div>
 
             <div>
-              <span className="inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800 mb-2">
-                Under Development
-              </span>
               <h3 className="text-base font-bold text-white">
-                Student Club Portal
+                Student Club
               </h3>
-              <p className="text-xs text-slate-300 mt-2 leading-relaxed">
-                The Student Club portal is currently under active development. It will soon provide club registrations, executive committee contacts, event calendars, and workshop announcements for all engineering chapters.
+              <p className="text-xs text-slate-400 mt-1">
+                Coming soon.
               </p>
             </div>
 
             <div className="pt-2 border-t border-slate-800 flex justify-end">
               <button
                 onClick={() => setShowClubModal(false)}
-                className="px-4 py-2 text-xs font-medium bg-white text-slate-900 rounded-md hover:bg-slate-100 transition-colors font-semibold"
+                className="px-4 py-1.5 text-xs font-semibold bg-white text-slate-950 hover:bg-slate-200 rounded-md transition-colors"
               >
-                Understood
+                Close
               </button>
             </div>
           </div>

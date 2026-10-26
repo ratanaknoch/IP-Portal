@@ -18,7 +18,7 @@
         "generation": {
           "type": "string",
           "description": "Student cohort generation",
-          "enum": ["I2", "I3", "I4"]
+          "enum": ["I1", "I2", "I3", "I4"]
         },
         "groupId": {
           "type": "string",
@@ -42,8 +42,8 @@
         },
         "bookedBy": {
           "type": "string",
-          "description": "Monitor identifier or password authorization tag",
-          "maxLength": 50
+          "description": "Monitor identifier or name",
+          "maxLength": 100
         },
         "note": {
           "type": "string",
@@ -56,12 +56,53 @@
         }
       },
       "required": ["course", "room", "generation", "groupId", "date", "day", "time", "bookedBy", "createdAt"]
+    },
+    "userProfile": {
+      "title": "UserProfile",
+      "description": "User profile containing academic cohort, group, and access role.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "monitor", "admin"] },
+        "year": { "type": "string", "enum": ["I1", "I2", "I3", "I4", "Admin", "None"] },
+        "groupId": { "type": "string" },
+        "onboardingCompleted": { "type": "boolean" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "notification": {
+      "title": "Notification",
+      "description": "System or admin announcement sent to user inboxes.",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 150 },
+        "message": { "type": "string", "maxLength": 1000 },
+        "audience": { "type": "string", "enum": ["all", "monitors", "students"] },
+        "senderName": { "type": "string" },
+        "senderRole": { "type": "string" },
+        "type": { "type": "string", "enum": ["announcement", "class_booking", "system"] },
+        "createdAt": { "type": "string" },
+        "readBy": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["title", "message", "audience", "createdAt"]
     }
   },
   "firestore": {
     "/makeupBookings/{bookingId}": {
       "schema": "#/entities/makeupBooking",
       "description": "Public timetable make-up reservations viewable by all students and manageable by authorized class monitors"
+    },
+    "/users/{userId}": {
+      "schema": "#/entities/userProfile",
+      "description": "User profile and role metadata"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "#/entities/notification",
+      "description": "Announcements and monitor notifications"
     }
   }
 }
