@@ -41,14 +41,26 @@ export function AuthModal({
       onClose();
     } catch (err: any) {
       console.error('Google sign-in error:', err);
-      if (err.code === 'auth/popup-blocked') {
+      const code = err.code || '';
+      const msg = err.message || '';
+
+      const isCancellation = 
+        code === 'auth/user-cancelled' ||
+        code === 'auth/popup-closed-by-user' ||
+        code === 'auth/cancelled-popup-request' ||
+        msg.includes('user-cancelled') ||
+        msg.includes('popup-closed-by-user') ||
+        msg.includes('IdP denied access') ||
+        msg.includes('access_denied');
+
+      if (isCancellation) {
+        setError('Sign-in was cancelled.');
+      } else if (code === 'auth/popup-blocked') {
         setError('Popup blocked by browser. Please allow popups or use Bongthom Login.');
-      } else if (err.code === 'auth/popup-closed-by-user') {
-        setError('Sign-in cancelled.');
-      } else if (err.code === 'auth/unauthorized-domain' || (err.message && err.message.includes('unauthorized-domain'))) {
+      } else if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
         setError('Domain not authorized in Firebase Console. Please add ip-portal.onrender.com to Authorized Domains.');
       } else {
-        setError(err.message || 'Unable to sign in. Please try again.');
+        setError(msg || 'Unable to sign in. Please try again.');
       }
     } finally {
       setLoading(false);
@@ -154,9 +166,15 @@ export function AuthModal({
         </div>
 
         {error && (
-          <div className="p-3 rounded-lg bg-red-950/80 border border-red-800 text-red-200 text-xs sm:text-sm flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-            <span>{error}</span>
+          <div className={`p-3 rounded-xl text-xs sm:text-sm flex items-center gap-2.5 transition-all ${
+            error === 'Sign-in was cancelled.'
+              ? 'bg-slate-800/80 border border-slate-700 text-slate-300'
+              : 'bg-red-950/80 border border-red-800 text-red-200'
+          }`}>
+            <AlertCircle className={`w-4 h-4 shrink-0 ${
+              error === 'Sign-in was cancelled.' ? 'text-slate-400' : 'text-red-400'
+            }`} />
+            <span className="font-medium">{error}</span>
           </div>
         )}
 
