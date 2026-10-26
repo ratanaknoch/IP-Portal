@@ -55,7 +55,7 @@ export function AcademicStatusModal({
       case 'I3':
         return { nextYear: 'I4', defaultGroup: 'I4-SE', label: 'Promote to I4 (Year 4 Specialization)' };
       case 'I4':
-        return { nextYear: 'I5', defaultGroup: 'I5-SE', label: 'Promote to I5 (Final Year / PFE)' };
+        return { nextYear: 'I5', defaultGroup: 'I5', label: 'Promote to I5 (Final Year PFE & Capstone)' };
       case 'I5':
         return { nextYear: 'Alumni', defaultGroup: 'Alumni', label: 'Graduate as ITC Alumni' };
       default:
@@ -73,6 +73,10 @@ export function AcademicStatusModal({
     setError('');
     if (newYear === 'Alumni') {
       setSelectedGroup('Alumni');
+      return;
+    }
+    if (newYear === 'I5') {
+      setSelectedGroup('I5');
       return;
     }
 
@@ -104,10 +108,13 @@ export function AcademicStatusModal({
 
     try {
       const isAlumni = selectedYear === 'Alumni';
+      const isI5 = selectedYear === 'I5';
+      const finalGroupId = isAlumni ? 'Alumni' : isI5 ? 'I5' : selectedGroup;
+
       const updatedProfile: UserProfile = {
         ...currentUserProfile,
         year: selectedYear,
-        groupId: isAlumni ? 'Alumni' : selectedGroup,
+        groupId: finalGroupId,
         isAlumni,
         promotionYear: promotionTag.trim(),
         updatedAt: new Date().toISOString()
@@ -119,7 +126,7 @@ export function AcademicStatusModal({
       // Save to localStorage cache
       try {
         localStorage.setItem('itc_user_profile', JSON.stringify(updatedProfile));
-        if (!isAlumni && selectedGroup) {
+        if (!isAlumni && !isI5 && selectedGroup) {
           localStorage.setItem('itc_my_cohort', selectedGroup);
         }
       } catch {
@@ -250,7 +257,7 @@ export function AcademicStatusModal({
             </div>
           </div>
 
-          {/* Conditional: Alumni Honorary Notice vs Class Selector */}
+          {/* Conditional: Alumni Honorary Notice vs I5 Capstone Notice vs Class Selector */}
           {selectedYear === 'Alumni' ? (
             <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-800/80 text-amber-200 text-xs sm:text-sm space-y-2 animate-in fade-in duration-150">
               <div className="flex items-center gap-2 font-bold text-amber-300 text-sm">
@@ -259,6 +266,16 @@ export function AcademicStatusModal({
               </div>
               <p className="text-slate-300 text-xs leading-relaxed">
                 Your profile will be recognized as an official ITC Alumni. You can continue accessing all timetables, room directories, faculty schedules, and academic archives anytime.
+              </p>
+            </div>
+          ) : selectedYear === 'I5' ? (
+            <div className="p-4 rounded-xl bg-sky-950/40 border border-sky-800/80 text-sky-200 text-xs sm:text-sm space-y-2 animate-in fade-in duration-150">
+              <div className="flex items-center gap-2 font-bold text-sky-300 text-sm">
+                <GraduationCap className="w-4 h-4 text-sky-400 shrink-0" />
+                <span>Final Year Engineering (PFE & Capstone Thesis)</span>
+              </div>
+              <p className="text-slate-300 text-xs leading-relaxed">
+                I5 engineering students conduct independent final year PFE internships and capstone defense research. No fixed weekly lecture schedule is assigned.
               </p>
             </div>
           ) : (

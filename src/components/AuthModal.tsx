@@ -26,9 +26,9 @@ export function AuthModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Admin credentials state - prefilled so clicking Sign In immediately works
-  const [adminUsername, setAdminUsername] = useState('Bigboss');
-  const [adminPassword, setAdminPassword] = useState('Liger72724');
+  // Admin credentials state - starts empty for security
+  const [adminUsername, setAdminUsername] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
 
   if (!isOpen) return null;
 
@@ -219,6 +219,7 @@ export function AuthModal({
                 value={adminUsername}
                 onChange={(e) => setAdminUsername(e.target.value)}
                 placeholder="Enter username"
+                autoComplete="username"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-hidden focus:border-amber-400"
                 required
               />
@@ -233,6 +234,7 @@ export function AuthModal({
                 value={adminPassword}
                 onChange={(e) => setAdminPassword(e.target.value)}
                 placeholder="Enter password"
+                autoComplete="current-password"
                 className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-hidden focus:border-amber-400"
                 required
               />

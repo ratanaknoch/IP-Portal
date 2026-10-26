@@ -51,6 +51,10 @@ export function OnboardingModal({
       setGroupId('Alumni');
       return;
     }
+    if (newYear === 'I5') {
+      setGroupId('I5');
+      return;
+    }
     const firstGroup = SCHEDULE_DATA.groups.find((g) => g.cohort === newYear);
     if (firstGroup) {
       setGroupId(firstGroup.id);
@@ -179,58 +183,70 @@ export function OnboardingModal({
             </div>
           </div>
 
-          {/* Academic Year Selection */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-300 mb-1">
+          {/* Academic Year Selection - Full Width to prevent text leak */}
+          <div className="space-y-1.5 pt-1">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs sm:text-sm font-semibold text-slate-300">
                 Academic Year / Status *
               </label>
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 p-1 bg-slate-950 border border-slate-800 rounded-lg">
-                {(['I1', 'I2', 'I3', 'I4', 'I5', 'Alumni'] as const).map((y) => (
-                  <button
-                    key={y}
-                    type="button"
-                    onClick={() => handleYearChange(y)}
-                    className={`py-2 text-xs font-bold rounded-md transition-all cursor-pointer ${
-                      year === y
-                        ? y === 'Alumni'
-                          ? 'bg-amber-500 text-slate-950 shadow-xs'
-                          : 'bg-sky-500 text-slate-950 shadow-xs'
-                        : y === 'Alumni'
-                        ? 'text-amber-400 hover:text-amber-200'
-                        : 'text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {y}
-                  </button>
-                ))}
-              </div>
+              <span className="text-[11px] text-slate-400 font-medium">
+                {year === 'Alumni' 
+                  ? 'ITC Graduate' 
+                  : year === 'I5' 
+                  ? 'Final Year (PFE & Thesis)' 
+                  : `Foundation & Specialization (${year})`}
+              </span>
             </div>
-
-            {/* Group / Class */}
-            <div>
-              <label className="block text-xs sm:text-sm font-semibold text-slate-300 mb-1">
-                {year === 'Alumni' ? 'Alumni Community *' : 'Class / Specialization *'}
-              </label>
-              {year === 'Alumni' ? (
-                <div className="px-3 py-2 bg-amber-950/40 border border-amber-800/80 rounded-lg text-amber-200 text-xs flex items-center gap-1.5">
-                  <Check className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                  <span>ITC Alumni & Engineering Graduate</span>
-                </div>
-              ) : (
-                <select
-                  value={groupId}
-                  onChange={(e) => setGroupId(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-hidden focus:border-sky-400 cursor-pointer"
+            <div className="grid grid-cols-6 gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl">
+              {(['I1', 'I2', 'I3', 'I4', 'I5', 'Alumni'] as const).map((y) => (
+                <button
+                  key={y}
+                  type="button"
+                  onClick={() => handleYearChange(y)}
+                  className={`py-2 px-1 text-center text-xs font-bold rounded-lg transition-all cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis ${
+                    year === y
+                      ? y === 'Alumni'
+                        ? 'bg-amber-500 text-slate-950 shadow-xs'
+                        : 'bg-sky-500 text-slate-950 shadow-xs'
+                      : y === 'Alumni'
+                      ? 'text-amber-400 hover:text-amber-200 hover:bg-slate-850'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                  }`}
                 >
-                  {availableGroups.map((g) => (
-                    <option key={g.id} value={g.id}>
-                      {g.id}
-                    </option>
-                  ))}
-                </select>
-              )}
+                  {y}
+                </button>
+              ))}
             </div>
+          </div>
+
+          {/* Group / Class Selection or Status Notice */}
+          <div className="space-y-1.5">
+            <label className="block text-xs sm:text-sm font-semibold text-slate-300">
+              {year === 'Alumni' || year === 'I5' ? 'Academic Status *' : `Class / Specialization (${year}) *`}
+            </label>
+            {year === 'Alumni' ? (
+              <div className="px-3.5 py-2.5 bg-amber-950/40 border border-amber-800/80 rounded-xl text-amber-200 text-xs sm:text-sm flex items-center gap-2">
+                <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>ITC Alumni & Engineering Graduate (Access to all timetables and archives)</span>
+              </div>
+            ) : year === 'I5' ? (
+              <div className="px-3.5 py-2.5 bg-sky-950/40 border border-sky-800/80 rounded-xl text-sky-200 text-xs sm:text-sm flex items-center gap-2">
+                <Check className="w-4 h-4 text-sky-400 shrink-0" />
+                <span>I5 Final Year Engineering (PFE Thesis & Capstone Defense)</span>
+              </div>
+            ) : (
+              <select
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-hidden focus:border-sky-400 cursor-pointer"
+              >
+                {availableGroups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.id} — {g.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Role Selection */}

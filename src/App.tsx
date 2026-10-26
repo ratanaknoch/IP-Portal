@@ -511,8 +511,11 @@ export default function App() {
       setActiveMonitorGen('Bigboss@67');
     }
     setIsOnboardingModalOpen(false);
+    setIsAuthModalOpen(false);
     setPendingFirebaseUser(null);
-    handleEnterStudentSchedule(profile.groupId);
+
+    // Directly auto sign in with the signed up account into student schedule
+    handleEnterStudentSchedule(profile.groupId, profile);
   };
 
   const handleUpgradeToMonitor = async (password: string): Promise<boolean> => {
@@ -553,9 +556,21 @@ export default function App() {
   // Active group object
   const activeGroupObj = SCHEDULE_DATA.groups.find(g => g.id === selectedGroup) || SCHEDULE_DATA.groups[0];
 
-  // Auth Guard
+  // Auth Guard (with cache verification before redirect)
   useEffect(() => {
     if (!userProfile && currentView === 'schedule') {
+      try {
+        const stored = localStorage.getItem('itc_user_profile');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && (parsed.onboardingCompleted || parsed.groupId)) {
+            setUserProfile(parsed);
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
       setCurrentView('landing');
       setIsAuthModalOpen(true);
       navigateTo('/login');
@@ -563,25 +578,35 @@ export default function App() {
   }, [userProfile, currentView, navigateTo]);
 
   // Handler to enter Student Portal directly into the timetable
-  const handleEnterStudentSchedule = (targetGroupId?: string) => {
-    if (!userProfile) {
+  const handleEnterStudentSchedule = (targetGroupId?: string, profileOverride?: UserProfile | null) => {
+    const activeUser = profileOverride !== undefined ? profileOverride : userProfile;
+    if (!activeUser) {
       setIsAuthModalOpen(true);
       navigateTo('/login');
       return;
     }
-    const groupToSelect = targetGroupId || myCohort;
+    const groupToSelect = 
+      targetGroupId && targetGroupId !== 'Alumni' && targetGroupId !== 'I5'
+        ? targetGroupId
+        : activeUser.groupId && activeUser.groupId !== 'Alumni' && activeUser.groupId !== 'I5'
+        ? activeUser.groupId
+        : myCohort || 'I2-SE';
+
     setSelectedGroup(groupToSelect);
     const grp = SCHEDULE_DATA.groups.find(g => g.id === groupToSelect);
     if (grp) setSelectedCohort(grp.cohort);
     setPortalRole('student');
     setActiveMode('matrix');
     setCurrentView('schedule');
+    setIsAuthModalOpen(false);
+    setIsOnboardingModalOpen(false);
     navigateTo(`/schedule?group=${groupToSelect}`);
   };
 
   // Handler to enter Class Monitor Portal
-  const handleEnterClassMonitor = (genPassword?: string) => {
-    if (!userProfile) {
+  const handleEnterClassMonitor = (genPassword?: string, profileOverride?: UserProfile | null) => {
+    const activeUser = profileOverride !== undefined ? profileOverride : userProfile;
+    if (!activeUser) {
       setIsAuthModalOpen(true);
       navigateTo('/login');
       return;
@@ -590,6 +615,8 @@ export default function App() {
     setPortalRole('class-monitor');
     setActiveMode('matrix');
     setCurrentView('schedule');
+    setIsAuthModalOpen(false);
+    setIsOnboardingModalOpen(false);
     navigateTo(`/schedule?group=${selectedGroup}`);
   };
 

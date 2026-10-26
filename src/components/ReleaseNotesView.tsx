@@ -107,7 +107,7 @@ export function ReleaseNotesView({ onBack }: ReleaseNotesViewProps) {
 
           <ul className="space-y-2 text-sm text-slate-300 list-disc list-inside">
             <li>
-              <strong className="text-white">Timetable Matrix:</strong> Complete schedules for Foundation Years (I1, I2) and Engineering Specializations (I3, I4, I5: SE, AIECS, CMIE) + Alumni Network.
+              <strong className="text-white">Timetable Matrix:</strong> Complete weekly schedules for Foundation Years (I1, I2) and Engineering Specializations (I3, I4: SE, AIECS, CMIE).
             </li>
             <li>
               <strong className="text-white">Make-up Class Booking:</strong> Room reservation system in Building A with schedule conflict prevention and monitor notifications.

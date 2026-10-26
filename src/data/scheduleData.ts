@@ -14,7 +14,7 @@ export interface ScheduleSession {
 
 export interface GroupSchedule {
   id: string;
-  cohort: 'I1' | 'I2' | 'I3' | 'I4' | 'I5' | 'Alumni';
+  cohort: 'I1' | 'I2' | 'I3' | 'I4';
   name: string;
   schedule: ScheduleSession[];
 }
@@ -402,49 +402,6 @@ export const SCHEDULE_DATA: ScheduleDataset = {
         { day: "Friday", time: "10h10 - 11h05", course: "System and Network Security", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room J-603" },
         { day: "Friday", time: "13h00 - 13h55", course: "Machine Learning", type: "Practical", lecturer: "Mr. PHALLY Rathavann", room: "Room J-603" },
         { day: "Friday", time: "14h00 - 14h55", course: "Machine Learning", type: "Practical", lecturer: "Mr. PHALLY Rathavann", room: "Room J-603" }
-      ]
-    },
-    {
-      id: "I5-SE",
-      cohort: "I5",
-      name: "I5 - Software Engineering (Final Year / Capstone & PFE)",
-      schedule: [
-        { day: "Monday", time: "8h00 - 8h55", course: "Projet de Fin d'Études (PFE) Seminar", type: "Lecture", lecturer: "Dr. SRANG Sarot", room: "Room A-401" },
-        { day: "Monday", time: "9h10 - 10h05", course: "Projet de Fin d'Études (PFE) Mentorship", type: "Practical", lecturer: "Dr. SRANG Sarot", room: "Room A-401" },
-        { day: "Tuesday", time: "8h00 - 8h55", course: "Cloud Architecture & DevOps", type: "Lecture", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" },
-        { day: "Tuesday", time: "9h10 - 10h05", course: "Cloud Architecture & DevOps", type: "Practical", lecturer: "Mr. CHUN Thavorac", room: "Room A-420" },
-        { day: "Thursday", time: "13h00 - 13h55", course: "Industry Capstone Defense & Review", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-401" },
-        { day: "Thursday", time: "14h00 - 14h55", course: "Industry Capstone Defense & Review", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-401" }
-      ]
-    },
-    {
-      id: "I5-AIECS",
-      cohort: "I5",
-      name: "I5 - AI Engineering & Cyber Security (Final Year / PFE)",
-      schedule: [
-        { day: "Monday", time: "13h00 - 13h55", course: "Advanced AI Defense & Research", type: "Lecture", lecturer: "Mr. PHALLY Rathavann", room: "Room A-417" },
-        { day: "Monday", time: "14h00 - 14h55", course: "Advanced AI Defense & Research", type: "Practical", lecturer: "Mr. PHALLY Rathavann", room: "Room A-417" },
-        { day: "Wednesday", time: "8h00 - 8h55", course: "PFE Thesis Project", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room A-401" },
-        { day: "Wednesday", time: "9h10 - 10h05", course: "PFE Thesis Project", type: "Practical", lecturer: "Mr. PICH Reatrey", room: "Room A-401" }
-      ]
-    },
-    {
-      id: "I5-CMIE",
-      cohort: "I5",
-      name: "I5 - Construction & Infrastructure (Final Year / PFE)",
-      schedule: [
-        { day: "Tuesday", time: "8h00 - 8h55", course: "Major Infrastructure PFE Capstone", type: "Lecture", lecturer: "Dr. LIM Sovanvichet", room: "Room A-402" },
-        { day: "Tuesday", time: "9h10 - 10h05", course: "Major Infrastructure PFE Capstone", type: "Practical", lecturer: "Dr. LIM Sovanvichet", room: "Room A-402" },
-        { day: "Thursday", time: "10h10 - 11h05", course: "Mega Project Site Management", type: "Lecture", lecturer: "Dr. HENG Sounean", room: "Room A-401" }
-      ]
-    },
-    {
-      id: "Alumni",
-      cohort: "Alumni",
-      name: "ITC Alumni Network & Graduate Community",
-      schedule: [
-        { day: "Saturday", time: "9h10 - 10h05", course: "Alumni Engineering Mentorship & Networking", type: "Lecture", lecturer: "Dr. SRANG Sarot", room: "Room A-109" },
-        { day: "Saturday", time: "10h10 - 11h05", course: "Tech Career Connect & Industry Keynotes", type: "Practical", lecturer: "Mr. TAL Tongsreng", room: "Room A-109" }
       ]
     }
   ]

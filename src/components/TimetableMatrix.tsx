@@ -160,8 +160,6 @@ export function TimetableMatrix({
                   <option value="I2">I2</option>
                   <option value="I3">I3</option>
                   <option value="I4">I4</option>
-                  <option value="I5">I5</option>
-                  <option value="Alumni">Alumni</option>
                 </select>
               </div>
 

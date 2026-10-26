@@ -19,7 +19,7 @@ export function QuickStats() {
         <div className="flex items-center gap-1.5 text-xs sm:text-sm">
           <span className="text-slate-400">Cohorts:</span>
           <span className="font-mono font-bold text-slate-100">{cohortsCount}</span>
-          <span className="text-slate-500 text-xs hidden sm:inline">(I1–I5 · Alumni)</span>
+          <span className="text-slate-500 text-xs hidden sm:inline">(I1–I4)</span>
         </div>
 
         <div className="flex items-center gap-1.5 text-xs sm:text-sm">
