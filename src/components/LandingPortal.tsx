@@ -42,6 +42,8 @@ interface LandingPortalProps {
   onUpgradeToMonitor?: (password: string) => Promise<boolean>;
   onOpenAcademicStatus?: () => void;
   onOpenReleaseNotes: () => void;
+  onOpenPrivacy: () => void;
+  onOpenTerms: () => void;
 }
 
 export function LandingPortal({
@@ -60,7 +62,9 @@ export function LandingPortal({
   onLogout,
   onUpgradeToMonitor,
   onOpenAcademicStatus,
-  onOpenReleaseNotes
+  onOpenReleaseNotes,
+  onOpenPrivacy,
+  onOpenTerms
 }: LandingPortalProps) {
   const [showClubModal, setShowClubModal] = useState(false);
   const [showMonitorAuthModal, setShowMonitorAuthModal] = useState(false);
@@ -516,12 +520,26 @@ export function LandingPortal({
             Student-made portal for learning and documentation purposes · Not an official institution site
           </p>
         </div>
-        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-4 text-[11px] text-slate-400 shrink-0">
+        <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2.5 sm:gap-3 text-[11px] text-slate-400 shrink-0">
           <button
             onClick={onOpenReleaseNotes}
             className="hover:text-slate-200 transition-colors cursor-pointer"
           >
-            Release Notes (v1.0.0)
+            Release Notes
+          </button>
+          <span>·</span>
+          <button
+            onClick={onOpenPrivacy}
+            className="hover:text-slate-200 transition-colors cursor-pointer"
+          >
+            Privacy Policy
+          </button>
+          <span>·</span>
+          <button
+            onClick={onOpenTerms}
+            className="hover:text-slate-200 transition-colors cursor-pointer"
+          >
+            Terms of Service
           </button>
           <span>·</span>
           <a

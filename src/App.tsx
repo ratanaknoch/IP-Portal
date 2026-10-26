@@ -18,6 +18,8 @@ import { AcademicStatusModal } from './components/AcademicStatusModal';
 import { FirstVisitLoader } from './components/FirstVisitLoader';
 import { LogoutOverlay } from './components/LogoutOverlay';
 import { ReleaseNotesView } from './components/ReleaseNotesView';
+import { PrivacyPolicyView } from './components/PrivacyPolicyView';
+import { TermsOfServiceView } from './components/TermsOfServiceView';
 import { 
   subscribeToMakeupBookings, 
   saveMakeupBooking, 
@@ -59,8 +61,8 @@ export default function App() {
     }
   };
 
-  // Top level views: 'landing' | 'schedule' | 'release-notes'
-  const [currentView, setCurrentView] = useState<'landing' | 'schedule' | 'release-notes'>('landing');
+  // Top level views: 'landing' | 'schedule' | 'release-notes' | 'privacy' | 'terms'
+  const [currentView, setCurrentView] = useState<'landing' | 'schedule' | 'release-notes' | 'privacy' | 'terms'>('landing');
   const [portalRole, setPortalRole] = useState<'student' | 'class-monitor'>('student');
   const [activeMonitorGen, setActiveMonitorGen] = useState<string>('Bigboss@67');
 
@@ -213,6 +215,16 @@ export default function App() {
       setIsAuthModalOpen(true);
     } else if (cleanPath === '/release-notes' || cleanPath === '/changelog') {
       setCurrentView('release-notes');
+      setIsFreeRoomsOpen(false);
+      setIsBookingModalOpen(false);
+      setIsAuthModalOpen(false);
+    } else if (cleanPath === '/privacy' || cleanPath === '/privacy-policy') {
+      setCurrentView('privacy');
+      setIsFreeRoomsOpen(false);
+      setIsBookingModalOpen(false);
+      setIsAuthModalOpen(false);
+    } else if (cleanPath === '/terms' || cleanPath === '/terms-of-service' || cleanPath === '/tos') {
+      setCurrentView('terms');
       setIsFreeRoomsOpen(false);
       setIsBookingModalOpen(false);
       setIsAuthModalOpen(false);
@@ -660,6 +672,14 @@ export default function App() {
             setCurrentView('release-notes');
             navigateTo('/release-notes');
           }}
+          onOpenPrivacy={() => {
+            setCurrentView('privacy');
+            navigateTo('/privacy');
+          }}
+          onOpenTerms={() => {
+            setCurrentView('terms');
+            navigateTo('/terms');
+          }}
         />
 
         {/* Free Study Room Modal accessible directly from Landing */}
@@ -732,6 +752,30 @@ export default function App() {
   if (currentView === 'release-notes') {
     return (
       <ReleaseNotesView
+        onBack={() => {
+          setCurrentView('landing');
+          navigateTo('/');
+        }}
+      />
+    );
+  }
+
+  // Dedicated Privacy Policy Page
+  if (currentView === 'privacy') {
+    return (
+      <PrivacyPolicyView
+        onBack={() => {
+          setCurrentView('landing');
+          navigateTo('/');
+        }}
+      />
+    );
+  }
+
+  // Dedicated Terms of Service Page
+  if (currentView === 'terms') {
+    return (
+      <TermsOfServiceView
         onBack={() => {
           setCurrentView('landing');
           navigateTo('/');
@@ -1096,7 +1140,7 @@ export default function App() {
               Disclaimer: This is not an official website from the school, but a student-made project for learning and documentation purposes.
             </p>
           </div>
-          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-3 sm:gap-4 text-xs">
+          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2.5 sm:gap-3 text-xs">
             <button
               onClick={() => {
                 setCurrentView('release-notes');
@@ -1104,7 +1148,27 @@ export default function App() {
               }}
               className="hover:text-slate-200 transition-colors cursor-pointer"
             >
-              Release Notes (v1.0.0)
+              Release Notes
+            </button>
+            <span>·</span>
+            <button
+              onClick={() => {
+                setCurrentView('privacy');
+                navigateTo('/privacy');
+              }}
+              className="hover:text-slate-200 transition-colors cursor-pointer"
+            >
+              Privacy Policy
+            </button>
+            <span>·</span>
+            <button
+              onClick={() => {
+                setCurrentView('terms');
+                navigateTo('/terms');
+              }}
+              className="hover:text-slate-200 transition-colors cursor-pointer"
+            >
+              Terms of Service
             </button>
             <span>·</span>
             <a
