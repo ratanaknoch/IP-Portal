@@ -42,9 +42,11 @@ export function AuthModal({
     } catch (err: any) {
       console.error('Google sign-in error:', err);
       if (err.code === 'auth/popup-blocked') {
-        setError('Popup blocked by browser. Please allow popups or use Admin Login.');
+        setError('Popup blocked by browser. Please allow popups or use Bongthom Login.');
       } else if (err.code === 'auth/popup-closed-by-user') {
         setError('Sign-in cancelled.');
+      } else if (err.code === 'auth/unauthorized-domain' || (err.message && err.message.includes('unauthorized-domain'))) {
+        setError('Domain not authorized in Firebase Console. Please add ip-portal.onrender.com to Authorized Domains.');
       } else {
         setError(err.message || 'Unable to sign in. Please try again.');
       }
@@ -64,7 +66,7 @@ export function AuthModal({
       const adminProfile: UserProfile = {
         uid: 'admin_bigboss_master',
         email: 'bigboss.admin@itc.edu.kh',
-        displayName: 'Bigboss (Administrator)',
+        displayName: 'Bigboss (Bongthom)',
         role: 'admin',
         year: 'Admin',
         groupId: 'ALL',
@@ -74,6 +76,7 @@ export function AuthModal({
 
       try {
         localStorage.setItem('itc_admin_auth', JSON.stringify(adminProfile));
+        sessionStorage.setItem('itc_monitor_authorized', 'true');
       } catch {
         // ignore
       }
@@ -81,7 +84,7 @@ export function AuthModal({
       onAdminLoginSuccess(adminProfile);
       onClose();
     } else {
-      setError('Invalid admin credentials.');
+      setError('Invalid Bongthom credentials.');
     }
   };
 
@@ -221,7 +224,7 @@ export function AuthModal({
               type="submit"
               className="w-full py-2.5 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs sm:text-sm uppercase tracking-wider transition-colors shadow-md cursor-pointer"
             >
-              Sign In
+              Sign In as Bongthom
             </button>
           </form>
         )}
