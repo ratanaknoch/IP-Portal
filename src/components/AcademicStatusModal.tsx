@@ -5,7 +5,6 @@ import {
   Check, 
   ArrowRight, 
   Award, 
-  Sparkles, 
   AlertCircle,
   CalendarDays,
   BookmarkCheck
@@ -203,9 +202,8 @@ export function AcademicStatusModal({
         {nextPromotion && selectedYear === currentUserProfile.year && (
           <div className="p-3.5 rounded-xl bg-gradient-to-r from-sky-950/60 to-indigo-950/60 border border-sky-800/80 flex items-center justify-between gap-3">
             <div className="space-y-0.5">
-              <div className="flex items-center gap-1.5 text-sky-300 text-xs font-bold uppercase tracking-wider">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Next Academic Year Promotion</span>
+              <div className="text-sky-300 text-xs font-bold uppercase tracking-wider">
+                Next Academic Year Promotion
               </div>
               <p className="text-xs text-slate-300">
                 {nextPromotion.label}
