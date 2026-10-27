@@ -427,11 +427,13 @@ export const ALL_ROOMS = Array.from(
   new Set(ALL_SESSIONS.map(s => s.room.trim()).filter(Boolean))
 ).sort((a, b) => a.localeCompare(b));
 
-// Building A rooms exclusively available for class monitor make-up bookings
-export const BOOKABLE_ROOMS = ALL_ROOMS.filter(r => r.includes('A-'));
+// Only rooms that exist in the I1 to I4 schedule, strictly Building A and Building J
+export const BOOKABLE_ROOMS = ALL_ROOMS.filter(r => r.includes('A-') || r.includes('J-')).sort(
+  (a, b) => a.localeCompare(b, undefined, { numeric: true })
+);
 
-// General study rooms available for student free room view (excludes specialized labs like F-205)
-export const FREE_STUDY_ROOMS = ALL_ROOMS.filter(r => !r.includes('F-205') && !r.includes('F-'));
+// General study rooms available for student free room view (Building A and Building J only, excludes specialized labs like F-205)
+export const FREE_STUDY_ROOMS = ALL_ROOMS.filter(r => (r.includes('A-') || r.includes('J-')) && !r.includes('F-'));
 
 // Parse time slot to [startMinutes, endMinutes]
 export function parseSlotMinutes(slot: string): [number, number] {

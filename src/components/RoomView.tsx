@@ -28,13 +28,14 @@ import {
   Plus,
   AlertTriangle
 } from 'lucide-react';
-import { MakeupClassBooking } from './MakeupClassBookingModal';
+import { isBookingExpired, MakeupClassBooking } from './MakeupClassBookingModal';
 
 interface RoomViewProps {
   selectedRoom: string;
   onSelectRoom: (room: string) => void;
   onSelectSession: (session: ScheduleSession) => void;
   onOpenBookingModal?: () => void;
+  onOpenFreeRooms?: () => void;
   makeupBookings?: MakeupClassBooking[];
 }
 
@@ -43,6 +44,7 @@ export function RoomView({
   onSelectRoom,
   onSelectSession,
   onOpenBookingModal,
+  onOpenFreeRooms,
   makeupBookings = []
 }: RoomViewProps) {
   const cambodiaTime = getCambodiaTime();
@@ -56,7 +58,8 @@ export function RoomView({
   const [buildingFilter, setBuildingFilter] = useState<'all' | 'A' | 'J'>('all');
   const [spotlightRoom, setSpotlightRoom] = useState<string>('ALL');
   const [dayFilter, setDayFilter] = useState<string>('ALL');
-  const [roomFormat, setRoomFormat] = useState<'short' | 'full'>('short');
+  // Default to Full view format per user request
+  const [roomFormat, setRoomFormat] = useState<'short' | 'full'>('full');
 
   // Today Inspector state
   const defaultDay = (cambodiaTime.dayName === 'Sunday' ? 'Monday' : cambodiaTime.dayName) as ScheduleSession['day'];
@@ -78,7 +81,7 @@ export function RoomView({
       .map(s => s.room.trim());
     
     const makeups = makeupBookings
-      .filter(m => m.day === day && (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot))))
+      .filter(m => !isBookingExpired(m) && m.day === day && (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot))))
       .map(m => m.room.trim());
 
     return Array.from(new Set([...scheduled, ...makeups]));
@@ -149,12 +152,23 @@ export function RoomView({
             </button>
           </div>
 
-          {/* Make-up class booking trigger & Venue counts */}
-          <div className="flex items-center gap-3">
+          {/* Action buttons & Venue counts */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {onOpenFreeRooms && (
+              <button
+                onClick={onOpenFreeRooms}
+                className="px-3 py-1.5 text-xs font-semibold rounded bg-sky-600 hover:bg-sky-500 text-white flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                title="Open one-click Free Study Rooms live scanner"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>View Available Rooms</span>
+              </button>
+            )}
+
             {onOpenBookingModal && (
               <button
                 onClick={onOpenBookingModal}
-                className="px-3 py-1.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors shadow-xs"
+                className="px-3 py-1.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Book Make-up Class</span>
@@ -163,7 +177,7 @@ export function RoomView({
 
             <div className="text-xs text-slate-400 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span>{FREE_STUDY_ROOMS.length} Venues ({FREE_STUDY_ROOMS.filter(r => r.includes('A-')).length} in Bldg A · {FREE_STUDY_ROOMS.filter(r => r.includes('J-')).length} in Bldg J)</span>
+              <span>{FREE_STUDY_ROOMS.length} Venues</span>
             </div>
           </div>
 
@@ -286,7 +300,7 @@ export function RoomView({
             </div>
 
             <div className="overflow-x-auto w-full overscroll-x-contain">
-              <table className="w-full min-w-[760px] md:min-w-full border-collapse text-left">
+              <table className="w-full min-w-[960px] md:min-w-full border-collapse text-left">
                 <thead>
                   <tr className="bg-slate-800/95 border-b border-slate-700">
                     <th className="sticky left-0 z-20 bg-slate-800 p-2.5 text-xs font-semibold uppercase tracking-wider text-slate-300 w-28 text-center shrink-0 border-r border-slate-700 shadow-[2px_0_6px_rgba(0,0,0,0.4)]">
@@ -299,7 +313,7 @@ export function RoomView({
                         return (
                           <th
                             key={day}
-                            className={`p-2.5 text-xs font-semibold text-center border-r border-slate-700 last:border-r-0 ${
+                            className={`p-2.5 text-xs font-semibold text-center border-r border-slate-700 last:border-r-0 min-w-[155px] ${
                               isToday ? 'bg-slate-700 text-slate-100 font-bold' : 'text-slate-300'
                             }`}
                           >
@@ -335,7 +349,7 @@ export function RoomView({
                           </div>
                         </td>
 
-                        {/* Day cells with available rooms list */}
+                        {/* Day cells with available rooms list in consistent 2 columns */}
                         {days
                           .filter(d => dayFilter === 'ALL' || dayFilter === d)
                           .map((day) => {
@@ -355,7 +369,7 @@ export function RoomView({
                             return (
                               <td
                                 key={day}
-                                className={`p-2.5 border-r border-slate-800 last:border-r-0 align-top ${
+                                className={`p-2 border-r border-slate-800 last:border-r-0 align-top min-w-[155px] ${
                                   isToday ? 'bg-slate-900/40' : ''
                                 } ${
                                   liveStatus.isCurrent ? 'ring-2 ring-emerald-500/30' : ''
@@ -382,13 +396,13 @@ export function RoomView({
                                     )}
                                   </div>
 
-                                  {/* List of Available Rooms at this hour */}
+                                  {/* List of Available Rooms in guaranteed 2 columns */}
                                   {availableRooms.length === 0 && slotMakeupBookings.length === 0 ? (
                                     <div className="py-2 text-center text-slate-500 text-[10px] italic">
                                       All venues occupied at this hour.
                                     </div>
                                   ) : (
-                                    <div className="flex flex-wrap gap-1">
+                                    <div className="grid grid-cols-2 gap-1.5">
                                       {/* Available free rooms */}
                                       {availableRooms.map((room) => {
                                         const isSpotlighted = spotlightRoom !== 'ALL' && spotlightRoom === room;
@@ -403,12 +417,12 @@ export function RoomView({
                                                 ? `${room} (Building J Computer Lab - Unconfirmed Availability)` 
                                                 : `${room} (Building A - Confirmed IP Classroom Available)`
                                             }
-                                            className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-medium transition-all text-left border ${
+                                            className={`w-full px-1 py-1 rounded font-mono text-[10px] sm:text-[11px] font-semibold transition-all text-center border truncate cursor-pointer ${
                                               isSpotlighted
                                                 ? 'bg-sky-500 text-slate-950 font-bold ring-2 ring-sky-300 shadow-xs'
                                                 : isBuildingJ
                                                 ? 'bg-slate-900/90 text-slate-400 border-slate-750 hover:border-slate-500 hover:text-slate-200'
-                                                : 'bg-emerald-950/40 text-emerald-300 border-emerald-800/80 hover:border-emerald-500 font-semibold'
+                                                : 'bg-emerald-950/50 text-emerald-300 border-emerald-800/80 hover:border-emerald-500 hover:bg-emerald-900/40'
                                             }`}
                                           >
                                             {formatRoomLabel(room, roomFormat)}
@@ -416,16 +430,18 @@ export function RoomView({
                                         );
                                       })}
 
-                                      {/* Booked Rooms in RED */}
+                                      {/* Booked Rooms in RED (Spans 2 cols) */}
                                       {slotMakeupBookings.map((makeup) => (
                                         <span
                                           key={makeup.id}
                                           title={`Booked Room: ${makeup.room} for ${makeup.course} by ${makeup.bookedBy}${makeup.date ? ` (${makeup.date})` : ''}`}
-                                          className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-rose-950/90 text-rose-300 border border-rose-600 flex items-center gap-1 shadow-xs"
+                                          className="col-span-2 px-1.5 py-1 rounded font-mono text-[10px] font-bold bg-rose-950/90 text-rose-300 border border-rose-600 flex items-center justify-between gap-1 shadow-xs"
                                         >
-                                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse shrink-0"></span>
-                                          <span className="line-through">{formatRoomLabel(makeup.room, roomFormat)}</span>
-                                          <span className="text-[8px] text-rose-100 uppercase font-sans font-extrabold bg-rose-800 px-1 rounded">Booked</span>
+                                          <span className="flex items-center gap-1 truncate">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse shrink-0"></span>
+                                            <span className="line-through truncate">{formatRoomLabel(makeup.room, roomFormat)}</span>
+                                          </span>
+                                          <span className="text-[8px] text-rose-100 uppercase font-sans font-extrabold bg-rose-800 px-1 py-0.2 rounded shrink-0">Booked</span>
                                         </span>
                                       ))}
                                     </div>

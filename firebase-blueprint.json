@@ -86,7 +86,8 @@
         "senderRole": { "type": "string" },
         "type": { "type": "string", "enum": ["announcement", "class_booking", "system"] },
         "createdAt": { "type": "string" },
-        "readBy": { "type": "array", "items": { "type": "string" } }
+        "readBy": { "type": "string" },
+        "clearedBy": { "type": "string" }
       },
       "required": ["title", "message", "audience", "createdAt"]
     }

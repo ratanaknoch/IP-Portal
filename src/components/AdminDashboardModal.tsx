@@ -23,7 +23,9 @@ import {
   saveUserProfile, 
   deleteUserProfile, 
   createNotification,
-  subscribeToNotifications
+  subscribeToNotifications,
+  deleteNotificationGlobally,
+  deleteAllNotificationsAcrossAllUsers
 } from '../lib/firebase';
 import { SCHEDULE_DATA } from '../data/scheduleData';
 
@@ -50,6 +52,8 @@ export function AdminDashboardModal({
   const [notifAudience, setNotifAudience] = useState<'all' | 'monitors'>('all');
   const [sendingNotif, setSendingNotif] = useState(false);
   const [notifSuccess, setNotifSuccess] = useState('');
+  const [confirmClearAllNotifs, setConfirmClearAllNotifs] = useState(false);
+  const [clearingAllNotifs, setClearingAllNotifs] = useState(false);
 
   // Add User Form Modal
   const [showAddUserModal, setShowAddUserModal] = useState(false);
@@ -145,6 +149,28 @@ export function AdminDashboardModal({
       console.error('Failed to send announcement:', err);
     } finally {
       setSendingNotif(false);
+    }
+  };
+
+  const handleDeleteSingleNotification = async (id: string) => {
+    try {
+      await deleteNotificationGlobally(id);
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+    }
+  };
+
+  const handleClearAllNotificationsGlobally = async () => {
+    setClearingAllNotifs(true);
+    try {
+      await deleteAllNotificationsAcrossAllUsers();
+      setConfirmClearAllNotifs(false);
+      setNotifSuccess('All notifications have been permanently cleared across all users.');
+      setTimeout(() => setNotifSuccess(''), 4000);
+    } catch (err) {
+      console.error('Failed to clear all notifications:', err);
+    } finally {
+      setClearingAllNotifs(false);
     }
   };
 
@@ -464,31 +490,82 @@ export function AdminDashboardModal({
 
               {/* Recent Announcements */}
               <div className="space-y-3 pt-2">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Recent Announcements ({notifications.length})
-                </h5>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {notifications.map((n) => (
-                    <div
-                      key={n.id}
-                      className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between gap-3 text-xs"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="font-bold text-white">{n.title}</span>
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-mono uppercase bg-slate-800 text-slate-300">
-                            {n.audience}
-                          </span>
-                        </div>
-                        <p className="text-slate-400 text-[11px] leading-relaxed">
-                          {n.message}
-                        </p>
-                        <div className="text-[10px] text-slate-500 font-mono mt-1">
-                          {new Date(n.createdAt).toLocaleString()} · {n.senderName}
-                        </div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h5 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Active Notifications Across All Users ({notifications.length})
+                  </h5>
+
+                  {notifications.length > 0 && (
+                    !confirmClearAllNotifs ? (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmClearAllNotifs(true)}
+                        className="px-2.5 py-1 rounded-md bg-red-950/80 hover:bg-red-900 border border-red-800 text-red-200 text-[11px] font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Clear All Notifications (All Users)</span>
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[11px] text-red-300 font-medium">
+                          Delete for everyone?
+                        </span>
+                        <button
+                          type="button"
+                          disabled={clearingAllNotifs}
+                          onClick={handleClearAllNotificationsGlobally}
+                          className="px-2.5 py-1 rounded bg-red-600 hover:bg-red-500 text-white text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {clearingAllNotifs ? 'Clearing...' : 'Yes, Clear All'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmClearAllNotifs(false)}
+                          className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] transition-colors cursor-pointer"
+                        >
+                          Cancel
+                        </button>
                       </div>
+                    )
+                  )}
+                </div>
+
+                <div className="space-y-2 max-h-60 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-4 rounded-lg bg-slate-950/60 border border-slate-800/80 text-center text-xs text-slate-500">
+                      No active notifications across users.
                     </div>
-                  ))}
+                  ) : (
+                    notifications.map((n) => (
+                      <div
+                        key={n.id}
+                        className="p-3 rounded-lg bg-slate-950 border border-slate-800 flex items-start justify-between gap-3 text-xs"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-bold text-white truncate">{n.title}</span>
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono uppercase bg-slate-800 text-slate-300 shrink-0">
+                              {n.audience}
+                            </span>
+                          </div>
+                          <p className="text-slate-400 text-[11px] leading-relaxed">
+                            {n.message}
+                          </p>
+                          <div className="text-[10px] text-slate-500 font-mono mt-1">
+                            {new Date(n.createdAt).toLocaleString()} · {n.senderName}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteSingleNotification(n.id)}
+                          title="Delete notification for all users"
+                          className="p-1.5 rounded text-slate-500 hover:text-red-400 hover:bg-red-950/40 transition-colors shrink-0 cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>

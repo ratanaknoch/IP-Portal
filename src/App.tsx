@@ -9,14 +9,12 @@ import { DailyAgenda } from './components/DailyAgenda';
 import { ClubsView } from './components/ClubsView';
 import { SessionDetailModal } from './components/SessionDetailModal';
 import { FreeStudyRoomModal } from './components/FreeStudyRoomModal';
-import { MakeupClassBookingModal, MakeupClassBooking } from './components/MakeupClassBookingModal';
+import { MakeupClassBookingModal, MakeupClassBooking, isBookingExpired } from './components/MakeupClassBookingModal';
 import { AuthModal } from './components/AuthModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
 import { NotificationInboxModal } from './components/NotificationInboxModal';
 import { AcademicStatusModal } from './components/AcademicStatusModal';
-import { FirstVisitLoader } from './components/FirstVisitLoader';
-import { LogoutOverlay } from './components/LogoutOverlay';
 import { ReleaseNotesView } from './components/ReleaseNotesView';
 import { PrivacyPolicyView } from './components/PrivacyPolicyView';
 import { TermsOfServiceView } from './components/TermsOfServiceView';
@@ -42,24 +40,6 @@ export default function App() {
   useEffect(() => {
     document.documentElement.classList.add('dark');
   }, []);
-
-  // First Visit loading animation (React Bits MetaBalls)
-  const [showFirstVisitLoader, setShowFirstVisitLoader] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem('itc_first_visit_shown') !== 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const handleCompleteFirstVisit = () => {
-    setShowFirstVisitLoader(false);
-    try {
-      sessionStorage.setItem('itc_first_visit_shown', 'true');
-    } catch {
-      // ignore
-    }
-  };
 
   // Top level views: 'landing' | 'schedule' | 'release-notes' | 'privacy' | 'terms'
   const [currentView, setCurrentView] = useState<'landing' | 'schedule' | 'release-notes' | 'privacy' | 'terms'>('landing');
@@ -262,11 +242,15 @@ export default function App() {
     }
   };
 
-  // Booked Make-up Sessions state (synced with Firestore + localStorage cache)
+  // Booked Make-up Sessions state (synced with Firestore + localStorage cache, auto-clearing expired)
   const [makeupBookings, setMakeupBookings] = useState<MakeupClassBooking[]>(() => {
     try {
       const stored = localStorage.getItem('itc_makeup_bookings');
-      return stored ? JSON.parse(stored) : [];
+      if (stored) {
+        const parsed: MakeupClassBooking[] = JSON.parse(stored);
+        return parsed.filter(b => !isBookingExpired(b));
+      }
+      return [];
     } catch {
       return [];
     }
@@ -276,16 +260,50 @@ export default function App() {
   useEffect(() => {
     testFirestoreConnection();
     const unsubscribeBookings = subscribeToMakeupBookings((remoteBookings) => {
-      setMakeupBookings(remoteBookings);
+      // Filter out any expired bookings from state
+      const active = remoteBookings.filter(b => !isBookingExpired(b));
+      const expired = remoteBookings.filter(b => isBookingExpired(b));
+
+      setMakeupBookings(active);
       try {
-        localStorage.setItem('itc_makeup_bookings', JSON.stringify(remoteBookings));
+        localStorage.setItem('itc_makeup_bookings', JSON.stringify(active));
       } catch {
         // ignore
       }
+
+      // Auto-delete expired bookings from Firestore so stale sessions never linger
+      if (expired.length > 0) {
+        for (const exp of expired) {
+          deleteMakeupBooking(exp.id).catch(err => {
+            console.warn('Auto-deleted expired booking locally, cloud sync deferred:', err);
+          });
+        }
+      }
     });
+
+    // Background interval to auto-expire and delete sessions as their class hours conclude
+    const expiryInterval = setInterval(() => {
+      setMakeupBookings(prev => {
+        const expired = prev.filter(b => isBookingExpired(b));
+        if (expired.length === 0) return prev;
+
+        const active = prev.filter(b => !isBookingExpired(b));
+        try {
+          localStorage.setItem('itc_makeup_bookings', JSON.stringify(active));
+        } catch {
+          // ignore
+        }
+
+        for (const exp of expired) {
+          deleteMakeupBooking(exp.id).catch(() => {});
+        }
+        return active;
+      });
+    }, 30000);
 
     return () => {
       unsubscribeBookings();
+      clearInterval(expiryInterval);
     };
   }, []);
 
@@ -376,9 +394,59 @@ export default function App() {
     };
   }, [userProfile?.role]);
 
+  const effectiveNotifUid = userProfile?.uid || 'guest';
+
+  // Local cleared notification IDs per user for instant optimistic updates & guest support
+  const [clearedNotifIds, setClearedNotifIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(`itc_cleared_notifs_${effectiveNotifUid}`);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(`itc_cleared_notifs_${effectiveNotifUid}`);
+      setClearedNotifIds(stored ? JSON.parse(stored) : []);
+    } catch {
+      setClearedNotifIds([]);
+    }
+  }, [effectiveNotifUid]);
+
+  const handleClearLocalNotification = useCallback((id: string) => {
+    setClearedNotifIds((prev) => {
+      const next = prev.includes(id) ? prev : [...prev, id];
+      try {
+        localStorage.setItem(`itc_cleared_notifs_${effectiveNotifUid}`, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, [effectiveNotifUid]);
+
+  const handleClearAllLocalNotifications = useCallback((ids: string[]) => {
+    setClearedNotifIds((prev) => {
+      const next = Array.from(new Set([...prev, ...ids]));
+      try {
+        localStorage.setItem(`itc_cleared_notifs_${effectiveNotifUid}`, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, [effectiveNotifUid]);
+
+  // Filter out notifications cleared by the current user
+  const visibleNotifications = notifications.filter(
+    (n) => !n.clearedBy?.includes(effectiveNotifUid) && !clearedNotifIds.includes(n.id)
+  );
+
   // Compute unread notification count
-  const unreadNotificationsCount = notifications.filter(
-    n => !n.readBy || !n.readBy.includes(userProfile?.uid || 'guest')
+  const unreadNotificationsCount = visibleNotifications.filter(
+    (n) => !n.readBy || !n.readBy.includes(effectiveNotifUid)
   ).length;
 
   const handleSaveMakeupBooking = async (booking: MakeupClassBooking) => {
@@ -417,12 +485,8 @@ export default function App() {
     }
   };
 
-  // Auth & Profile actions: triggers LogoutOverlay animation with MetallicPaint
-  const handleTriggerLogout = () => {
-    setIsLoggingOut(true);
-  };
-
-  const handleFinishLogout = async () => {
+  // Auth & Profile actions: fast instant logout
+  const handleTriggerLogout = async () => {
     try {
       await logoutUser();
     } catch {
@@ -657,18 +721,6 @@ export default function App() {
   if (currentView === 'landing') {
     return (
       <>
-        {/* First Visit Loader Animation (React Bits MetaBalls) */}
-        {showFirstVisitLoader && (
-          <FirstVisitLoader onComplete={handleCompleteFirstVisit} />
-        )}
-
-        {/* Logout Animation Overlay (React Bits MetallicPaint) */}
-        <LogoutOverlay
-          isOpen={isLoggingOut}
-          userName={userProfile?.displayName || userProfile?.email?.split('@')[0]}
-          onFinished={handleFinishLogout}
-        />
-
         <LandingPortal
           onEnterClassMonitor={handleEnterClassMonitor}
           onEnterStudentSchedule={handleEnterStudentSchedule}
@@ -758,8 +810,11 @@ export default function App() {
         <NotificationInboxModal
           isOpen={isInboxOpen}
           onClose={() => setIsInboxOpen(false)}
-          notifications={notifications}
+          notifications={visibleNotifications}
           currentUserId={userProfile?.uid}
+          currentUserRole={userProfile?.role}
+          onClearLocalNotification={handleClearLocalNotification}
+          onClearAllLocalNotifications={handleClearAllLocalNotifications}
         />
 
         {/* Academic Status & Year Promotion Modal on Landing */}
@@ -816,19 +871,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
-      
-      {/* First Visit Loader Animation (React Bits MetaBalls) */}
-      {showFirstVisitLoader && (
-        <FirstVisitLoader onComplete={handleCompleteFirstVisit} />
-      )}
-
-      {/* Logout Animation Overlay (React Bits MetallicPaint) */}
-      <LogoutOverlay
-        isOpen={isLoggingOut}
-        userName={userProfile?.displayName || userProfile?.email?.split('@')[0]}
-        onFinished={handleFinishLogout}
-      />
-
       {/* Top Bar with School Logo, Navigation Tabs & URLs */}
       <Header
         activeMode={activeMode}
@@ -936,6 +978,10 @@ export default function App() {
             onOpenBookingModal={() => {
               setIsBookingModalOpen(true);
               navigateTo('/booking');
+            }}
+            onOpenFreeRooms={() => {
+              setIsFreeRoomsOpen(true);
+              navigateTo('/free-rooms');
             }}
             makeupBookings={makeupBookings}
           />
@@ -1152,8 +1198,11 @@ export default function App() {
       <NotificationInboxModal
         isOpen={isInboxOpen}
         onClose={() => setIsInboxOpen(false)}
-        notifications={notifications}
+        notifications={visibleNotifications}
         currentUserId={userProfile?.uid}
+        currentUserRole={userProfile?.role}
+        onClearLocalNotification={handleClearLocalNotification}
+        onClearAllLocalNotifications={handleClearAllLocalNotifications}
       />
 
       {/* Institutional Academic Footer */}

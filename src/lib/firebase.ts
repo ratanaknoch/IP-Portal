@@ -5,6 +5,7 @@ import {
   doc, 
   setDoc, 
   getDoc,
+  getDocs,
   deleteDoc, 
   onSnapshot, 
   getDocFromServer,
@@ -73,6 +74,7 @@ export interface AppNotification {
   type: 'announcement' | 'class_booking' | 'system';
   createdAt: string;
   readBy?: string[];
+  clearedBy?: string[];
 }
 
 // Test connection on boot per Firestore specification
@@ -292,7 +294,8 @@ export async function createNotification(notif: Omit<AppNotification, 'id'>): Pr
     await setDoc(doc(db, 'notifications', id), {
       ...notif,
       id,
-      readBy: notif.readBy || []
+      readBy: notif.readBy || [],
+      clearedBy: notif.clearedBy || []
     });
     return id;
   } catch (error) {
@@ -309,6 +312,55 @@ export async function markNotificationAsRead(notificationId: string, uid: string
     });
   } catch (error) {
     console.warn('Could not mark notification as read:', error);
+  }
+}
+
+export async function clearNotificationForUser(notificationId: string, uid: string): Promise<void> {
+  try {
+    await updateDoc(doc(db, 'notifications', notificationId), {
+      clearedBy: arrayUnion(uid),
+      readBy: arrayUnion(uid)
+    });
+  } catch (error) {
+    console.warn('Could not clear notification in cloud, using local cache:', error);
+  }
+}
+
+export async function clearAllNotificationsForUser(notificationIds: string[], uid: string): Promise<void> {
+  try {
+    await Promise.all(
+      notificationIds.map((id) =>
+        updateDoc(doc(db, 'notifications', id), {
+          clearedBy: arrayUnion(uid),
+          readBy: arrayUnion(uid)
+        }).catch(() => {})
+      )
+    );
+  } catch (error) {
+    console.warn('Could not clear all notifications in cloud:', error);
+  }
+}
+
+export async function deleteNotificationGlobally(notificationId: string): Promise<void> {
+  const docPath = `notifications/${notificationId}`;
+  try {
+    await deleteDoc(doc(db, 'notifications', notificationId));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, docPath);
+  }
+}
+
+export async function deleteAllNotificationsAcrossAllUsers(): Promise<void> {
+  const collectionPath = 'notifications';
+  try {
+    const snap = await getDocs(collection(db, collectionPath));
+    const deletions: Promise<void>[] = [];
+    snap.forEach((d) => {
+      deletions.push(deleteDoc(doc(db, collectionPath, d.id)));
+    });
+    await Promise.all(deletions);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, collectionPath);
   }
 }
 
@@ -342,7 +394,8 @@ export function subscribeToNotifications(
               senderRole: data.senderRole || 'Admin',
               type: data.type || 'announcement',
               createdAt: data.createdAt || new Date().toISOString(),
-              readBy: data.readBy || []
+              readBy: data.readBy || [],
+              clearedBy: data.clearedBy || []
             });
           }
         });

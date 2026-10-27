@@ -12,9 +12,12 @@ import {
   Trash2,
   ListFilter,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Building2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import { SCHEDULE_DATA, ALL_ROOMS, BOOKABLE_ROOMS, ALL_SESSIONS, getCambodiaTime } from '../data/scheduleData';
+import { SCHEDULE_DATA, BOOKABLE_ROOMS, ALL_SESSIONS, parseSlotMinutes } from '../data/scheduleData';
 import { UserProfile } from '../lib/firebase';
 
 export type ScheduleDay = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
@@ -44,12 +47,58 @@ interface MakeupClassBookingModalProps {
   currentUserProfile?: UserProfile | null;
 }
 
+// Helper: Check if a make-up class booking has expired according to Cambodia Time (UTC+7)
+export function isBookingExpired(booking: MakeupClassBooking): boolean {
+  if (!booking || !booking.date) return false;
+
+  const now = new Date();
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const khDate = new Date(utc + (3600000 * 7)); // UTC+7 Phnom Penh
+
+  const khY = khDate.getFullYear();
+  const khM = String(khDate.getMonth() + 1).padStart(2, '0');
+  const khD = String(khDate.getDate()).padStart(2, '0');
+  const todayKhStr = `${khY}-${khM}-${khD}`;
+
+  // If the booking date is strictly in the past, it is expired
+  if (booking.date < todayKhStr) {
+    return true;
+  }
+
+  // If the booking date is in the future, it has NOT expired
+  if (booking.date > todayKhStr) {
+    return false;
+  }
+
+  // If the booking is TODAY: check if all selected time slots have finished
+  const currentTotalMinutes = khDate.getHours() * 60 + khDate.getMinutes();
+
+  const slots = (booking.timeSlots && booking.timeSlots.length > 0)
+    ? booking.timeSlots
+    : (booking.time ? booking.time.split(', ') : []);
+
+  let maxEndMinutes = 0;
+  for (const slot of slots) {
+    const parts = slot.split('-').map(s => s.trim());
+    if (parts.length >= 2) {
+      const [h, m] = parts[1].split('h').map(Number);
+      const endMins = (h || 0) * 60 + (m || 0);
+      if (endMins > maxEndMinutes) {
+        maxEndMinutes = endMins;
+      }
+    }
+  }
+
+  // If current time passed the end of the class slot, it has expired
+  return maxEndMinutes > 0 && currentTotalMinutes >= maxEndMinutes;
+}
+
 // Helper: Calculate the earliest bookable date in Cambodia (UTC+7)
 // If Sunday -> advances to Monday
-// If today is past 2:00 PM -> cannot book today, advances to tomorrow (or Monday if tomorrow is Sunday)
+// If today's last slot (16h10) has already started/passed -> advances to tomorrow (or Monday if tomorrow is Sunday)
 export function getEarliestBookableDate(): {
   earliestDate: string;
-  isTodayPast2Pm: boolean;
+  isTodayAllSlotsPassed: boolean;
   rawToday: string;
 } {
   const now = new Date();
@@ -62,17 +111,16 @@ export function getEarliestBookableDate(): {
   const rawToday = `${rawY}-${rawM}-${rawD}`;
 
   const totalMinutes = kh.getHours() * 60 + kh.getMinutes();
-  const isTodayPast2Pm = totalMinutes >= 14 * 60; // 14:00 (2:00 PM)
+  // 16h10 is the start of the final class slot. If past 16:10, today's schedule has ended.
+  const isTodayAllSlotsPassed = totalMinutes >= (16 * 60 + 10);
 
   let target = new Date(kh);
 
   // If today is Sunday (day 0), advance to Monday (+1 day)
   if (target.getDay() === 0) {
     target.setDate(target.getDate() + 1);
-  } else if (isTodayPast2Pm) {
-    // Past 2pm today: advance to tomorrow
+  } else if (isTodayAllSlotsPassed) {
     target.setDate(target.getDate() + 1);
-    // If tomorrow is Sunday, advance to Monday (+1 day)
     if (target.getDay() === 0) {
       target.setDate(target.getDate() + 1);
     }
@@ -84,7 +132,7 @@ export function getEarliestBookableDate(): {
 
   return {
     earliestDate: `${y}-${m}-${d}`,
-    isTodayPast2Pm,
+    isTodayAllSlotsPassed,
     rawToday
   };
 }
@@ -101,52 +149,77 @@ export function MakeupClassBookingModal({
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
 
   // Compute earliest bookable date
-  const { earliestDate, isTodayPast2Pm, rawToday } = useMemo(() => getEarliestBookableDate(), [isOpen]);
+  const { earliestDate, isTodayAllSlotsPassed, rawToday } = useMemo(() => getEarliestBookableDate(), [isOpen]);
 
-  // Form State - strictly NOT auto-selected as requested
-  const [course, setCourse] = useState('');
-  const [room, setRoom] = useState('');
-  const [groupId, setGroupId] = useState(
-    currentUserProfile?.groupId || 'I1-G1'
-  );
-  
-  // Timeslot selection - starts empty (not auto-selected)
-  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
-  
-  const [note, setNote] = useState('');
-  const [error, setError] = useState('');
-
-  // Date state initialized strictly to the earliest valid bookable date
+  // Form State
   const [selectedDate, setSelectedDate] = useState<string>(earliestDate);
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
+  const [room, setRoom] = useState<string>('');
+  const [course, setCourse] = useState<string>('');
+  const [groupId, setGroupId] = useState<string>(
+    currentUserProfile?.groupId && currentUserProfile.groupId !== 'Alumni' && currentUserProfile.groupId !== 'I5'
+      ? currentUserProfile.groupId
+      : 'I2-SE'
+  );
+  const [note, setNote] = useState<string>('');
+  const [error, setError] = useState<string>('');
 
-  // Calendar month navigator state initialized to the month of the earliest date
+  // Building filter for available rooms: Building A vs Building J
+  const [buildingFilter, setBuildingFilter] = useState<'ALL' | 'A' | 'J'>('ALL');
+  const [showOccupiedList, setShowOccupiedList] = useState<boolean>(false);
+
+  // Calendar month navigator state
   const [calendarViewDate, setCalendarViewDate] = useState<Date>(() => {
     const [y, m] = earliestDate.split('-').map(Number);
     return new Date(y, m - 1, 1);
   });
 
-  // Reset form whenever modal opens so nothing is auto-selected
+  // Calculate current Cambodia minutes to disable passed slots if selectedDate === rawToday
+  const currentKhMinutes = useMemo(() => {
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const kh = new Date(utc + (3600000 * 7));
+    return kh.getHours() * 60 + kh.getMinutes();
+  }, [isOpen, selectedDate]);
+
+  // Check if a time slot has already passed when viewing today
+  const isSlotPassed = (slot: string) => {
+    if (selectedDate !== rawToday) return false;
+    const [startMin] = parseSlotMinutes(slot);
+    return currentKhMinutes >= startMin;
+  };
+
+  // Filter out any expired bookings from active list
+  const activeExistingBookings = useMemo(() => {
+    return existingBookings.filter(b => !isBookingExpired(b));
+  }, [existingBookings]);
+
+  // Reset form whenever modal opens
   useEffect(() => {
     if (isOpen) {
-      setCourse('');
-      setRoom('');
+      setSelectedDate(earliestDate);
       setSelectedSlots([]);
+      setRoom('');
+      setCourse('');
       setNote('');
       setError('');
-      setSelectedDate(earliestDate);
+      setBuildingFilter('ALL');
+      setShowOccupiedList(false);
       const [y, m] = earliestDate.split('-').map(Number);
       setCalendarViewDate(new Date(y, m - 1, 1));
       setActiveTab('create');
+      if (currentUserProfile?.groupId && currentUserProfile.groupId !== 'Alumni' && currentUserProfile.groupId !== 'I5') {
+        setGroupId(currentUserProfile.groupId);
+      }
     }
-  }, [isOpen, earliestDate]);
+  }, [isOpen, earliestDate, currentUserProfile]);
 
-  // Check if calendar view is at or before the current month
-  const isPastMonth = useMemo(() => {
-    const [currentY, currentM] = rawToday.split('-').map(Number);
-    const viewY = calendarViewDate.getFullYear();
-    const viewM = calendarViewDate.getMonth() + 1;
-    return viewY < currentY || (viewY === currentY && viewM <= currentM);
-  }, [calendarViewDate, rawToday]);
+  // Deselect any slots that have passed if viewing today
+  useEffect(() => {
+    if (selectedDate === rawToday && selectedSlots.length > 0) {
+      setSelectedSlots(prev => prev.filter(slot => !isSlotPassed(slot)));
+    }
+  }, [selectedDate, rawToday, currentKhMinutes]);
 
   // Derive day name from selectedDate
   const derivedDay = useMemo<ScheduleDay>(() => {
@@ -182,8 +255,17 @@ export function MakeupClassBookingModal({
     }
   }, [selectedDate]);
 
-  // Toggle time slot - allows unselecting all slots at will
+  // Check if calendar view is at or before current month
+  const isPastMonth = useMemo(() => {
+    const [currentY, currentM] = rawToday.split('-').map(Number);
+    const viewY = calendarViewDate.getFullYear();
+    const viewM = calendarViewDate.getMonth() + 1;
+    return viewY < currentY || (viewY === currentY && viewM <= currentM);
+  }, [calendarViewDate, rawToday]);
+
+  // Toggle time slot selection
   const handleToggleSlot = (slot: string) => {
+    if (isSlotPassed(slot)) return;
     setError('');
     setSelectedSlots(prev => {
       let updated: string[];
@@ -192,67 +274,76 @@ export function MakeupClassBookingModal({
       } else {
         updated = [...prev, slot];
       }
-      // Keep sorted in chronological order of SCHEDULE_DATA.meta.timeSlots
       return updated.sort((a, b) => 
         SCHEDULE_DATA.meta.timeSlots.indexOf(a) - SCHEDULE_DATA.meta.timeSlots.indexOf(b)
       );
     });
   };
 
-  // Conflict Detection across selected slots (only active when room is selected)
-  const slotConflicts = useMemo(() => {
-    if (!room.trim() || selectedSlots.length === 0) return [];
-    const conflicts: Array<{ slot: string; reason: string }> = [];
+  // DYNAMIC ROOM AVAILABILITY: Evaluates all Building A and Building J rooms for selectedDate + selectedSlots
+  const roomAvailability = useMemo(() => {
+    if (selectedSlots.length === 0 || !selectedDate) {
+      return { availableRooms: [], occupiedRooms: [] };
+    }
 
-    selectedSlots.forEach(slot => {
-      // 1. Regular class conflict
-      const regularConflict = ALL_SESSIONS.find(
-        s => s.room.trim() === room.trim() && s.day === derivedDay && s.time === slot
-      );
-      if (regularConflict) {
-        conflicts.push({
-          slot,
-          reason: `Occupied by regular class "${regularConflict.course}" (${regularConflict.groupId || 'Regular'})`
-        });
-        return;
-      }
+    const available: string[] = [];
+    const occupied: Array<{ room: string; reason: string }> = [];
 
-      // 2. Make-up class conflict
-      const makeupConflict = existingBookings.find(b => {
-        if (b.room.trim() !== room.trim() || b.date !== selectedDate) return false;
-        if (b.timeSlots && b.timeSlots.length > 0) {
-          return b.timeSlots.includes(slot);
+    BOOKABLE_ROOMS.forEach(r => {
+      let isBusy = false;
+      let busyReason = '';
+
+      // Check against regular class sessions on this day of week
+      for (const slot of selectedSlots) {
+        const regularClass = ALL_SESSIONS.find(
+          s => s.room.trim() === r.trim() && s.day === derivedDay && s.time === slot
+        );
+        if (regularClass) {
+          isBusy = true;
+          busyReason = `Occupied by regular class "${regularClass.course}" (${regularClass.groupId || 'Class'}) at ${slot}`;
+          break;
         }
-        return b.time === slot || b.time.includes(slot);
-      });
 
-      if (makeupConflict) {
-        conflicts.push({
-          slot,
-          reason: `Already reserved by ${makeupConflict.bookedBy} for "${makeupConflict.course}" (${makeupConflict.groupId})`
+        // Check against active make-up bookings on this specific date
+        const makeupClass = activeExistingBookings.find(b => {
+          if (b.room.trim() !== r.trim() || b.date !== selectedDate) return false;
+          if (b.timeSlots && b.timeSlots.length > 0) {
+            return b.timeSlots.includes(slot);
+          }
+          return b.time === slot || b.time.includes(slot);
         });
+
+        if (makeupClass) {
+          isBusy = true;
+          busyReason = `Booked by ${makeupClass.bookedBy} for "${makeupClass.course}" (${makeupClass.groupId}) at ${slot}`;
+          break;
+        }
+      }
+
+      if (isBusy) {
+        occupied.push({ room: r, reason: busyReason });
+      } else {
+        available.push(r);
       }
     });
 
-    return conflicts;
-  }, [room, derivedDay, selectedSlots, selectedDate, existingBookings]);
+    return { availableRooms: available, occupiedRooms: occupied };
+  }, [selectedSlots, selectedDate, derivedDay, activeExistingBookings]);
 
-  // Check if a specific slot has conflict (only evaluated if room is selected)
-  const isSlotConflicted = (slot: string) => {
-    if (!room.trim()) return false;
-    const regular = ALL_SESSIONS.some(
-      s => s.room.trim() === room.trim() && s.day === derivedDay && s.time === slot
-    );
-    if (regular) return true;
+  // If the previously selected room becomes occupied after changing slots/date, deselect it
+  useEffect(() => {
+    if (room && selectedSlots.length > 0 && !roomAvailability.availableRooms.includes(room)) {
+      setRoom('');
+    }
+  }, [roomAvailability.availableRooms, room, selectedSlots.length]);
 
-    return existingBookings.some(b => {
-      if (b.room.trim() !== room.trim() || b.date !== selectedDate) return false;
-      if (b.timeSlots && b.timeSlots.length > 0) {
-        return b.timeSlots.includes(slot);
-      }
-      return b.time === slot || b.time.includes(slot);
-    });
-  };
+  // Filter available rooms by building (Building A vs Building J)
+  const filteredAvailableRooms = useMemo(() => {
+    if (buildingFilter === 'ALL') return roomAvailability.availableRooms;
+    if (buildingFilter === 'A') return roomAvailability.availableRooms.filter(r => r.includes('A-'));
+    if (buildingFilter === 'J') return roomAvailability.availableRooms.filter(r => r.includes('J-'));
+    return roomAvailability.availableRooms;
+  }, [roomAvailability.availableRooms, buildingFilter]);
 
   if (!isOpen) return null;
 
@@ -270,9 +361,9 @@ export function MakeupClassBookingModal({
       dayNumber: number; 
       dateString: string; 
       isCurrentMonth: boolean; 
-      isSunday: boolean;
-      isDisabled: boolean;
-      isToday: boolean;
+      isSunday: boolean; 
+      isDisabled: boolean; 
+      isToday: boolean; 
     }> = [];
 
     // Empty lead slots
@@ -295,7 +386,6 @@ export function MakeupClassBookingModal({
       const dayOfWeek = new Date(year, month, d).getDay();
       const isSunday = dayOfWeek === 0;
       
-      // Disabled if past or before earliest valid date or Sunday
       const isDisabled = dateString < earliestDate || isSunday;
 
       days.push({
@@ -327,31 +417,8 @@ export function MakeupClassBookingModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!course.trim()) {
-      setError('Please enter the class / course name.');
-      return;
-    }
-
-    if (!room.trim()) {
-      setError('Please select a classroom in Building A.');
-      return;
-    }
-
     if (!selectedDate) {
       setError('Please select a valid date on the calendar.');
-      return;
-    }
-
-    if (selectedDate < earliestDate) {
-      setError('Selected date is not available. Please choose a valid upcoming date.');
-      return;
-    }
-
-    // Disallow Sunday booking
-    const [y, m, dNum] = selectedDate.split('-').map(Number);
-    const dayOfWeek = new Date(y, m - 1, dNum).getDay();
-    if (dayOfWeek === 0) {
-      setError('ITC campus is closed on Sundays. Please select a date from Monday to Saturday.');
       return;
     }
 
@@ -360,12 +427,26 @@ export function MakeupClassBookingModal({
       return;
     }
 
-    if (slotConflicts.length > 0) {
-      setError('Cannot confirm reservation: One or more selected time slots have a room conflict.');
+    if (selectedDate === rawToday && selectedSlots.some(s => isSlotPassed(s))) {
+      setError('One or more selected slots have already passed today. Please select an upcoming slot.');
       return;
     }
 
-    // Name of the person who booked: strictly the class monitor's name/email, never password
+    if (!room.trim()) {
+      setError('Please choose an available classroom.');
+      return;
+    }
+
+    if (!roomAvailability.availableRooms.includes(room)) {
+      setError(`Cannot confirm: ${room} is occupied during one of your selected time slots.`);
+      return;
+    }
+
+    if (!course.trim()) {
+      setError('Please enter the course / subject name for this make-up session.');
+      return;
+    }
+
     const monitorName = currentUserProfile?.displayName 
       ? currentUserProfile.displayName
       : currentUserProfile?.email 
@@ -375,7 +456,7 @@ export function MakeupClassBookingModal({
     const newBooking: MakeupClassBooking = {
       id: `makeup-${Date.now()}`,
       course: course.trim(),
-      room,
+      room: room.trim(),
       groupId,
       date: selectedDate,
       day: derivedDay,
@@ -393,7 +474,7 @@ export function MakeupClassBookingModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-xs overflow-y-auto">
       <div 
-        className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[94vh]"
+        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[94vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -411,6 +492,9 @@ export function MakeupClassBookingModal({
                   </span>
                 )}
               </h3>
+              <p className="text-[11px] text-slate-400">
+                Book Building A & Building J classrooms · Auto-clears after class
+              </p>
             </div>
           </div>
           <button
@@ -447,9 +531,9 @@ export function MakeupClassBookingModal({
           >
             <ListFilter className="w-3.5 h-3.5" />
             <span>Active Bookings</span>
-            {existingBookings.length > 0 && (
+            {activeExistingBookings.length > 0 && (
               <span className="ml-1 px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono font-bold">
-                {existingBookings.length}
+                {activeExistingBookings.length}
               </span>
             )}
           </button>
@@ -465,51 +549,18 @@ export function MakeupClassBookingModal({
               </div>
             )}
 
-            {/* 1. Class / Course Name & Group */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="sm:col-span-2">
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Class / Course Name *
-                </label>
-                <input
-                  type="text"
-                  value={course}
-                  onChange={(e) => {
-                    setCourse(e.target.value);
-                    setError('');
-                  }}
-                  placeholder="e.g. Fundamental Concept of Data Security"
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:border-sky-400 text-xs"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-semibold mb-1">
-                  Class / Group *
-                </label>
-                <select
-                  value={groupId}
-                  onChange={(e) => setGroupId(e.target.value)}
-                  className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-md text-white font-mono focus:outline-hidden focus:border-sky-400 text-xs"
-                >
-                  {SCHEDULE_DATA.groups.map(g => (
-                    <option key={g.id} value={g.id}>{g.id}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* 2. Interactive Calendar Date Picker (Auto-earliest date) */}
+            {/* STEP 1: Interactive Calendar Date Selection */}
             <div className="space-y-2 bg-slate-950/70 border border-slate-800 rounded-lg p-3">
               <div className="flex items-center justify-between">
-                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-                  <CalendarIcon className="w-4 h-4 text-sky-400" />
-                  <span>Select Date on Calendar *</span>
+                <label className="text-slate-200 font-bold flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-sky-950 border border-sky-800 text-sky-400 text-[11px] flex items-center justify-center font-mono">
+                    1
+                  </span>
+                  <span>Select Date *</span>
                 </label>
-                {isTodayPast2Pm && (
+                {isTodayAllSlotsPassed && (
                   <span className="text-[10px] text-amber-400 bg-amber-950/80 border border-amber-800/80 px-2 py-0.5 rounded font-medium">
-                    Same-day booking closed (After 2PM)
+                    Same-day booking closed (All classes ended today)
                   </span>
                 )}
               </div>
@@ -596,40 +647,22 @@ export function MakeupClassBookingModal({
               <div className="flex items-center justify-between pt-2 border-t border-slate-800/80 text-[11px]">
                 <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>Selected: <strong>{formattedSelectedDate}</strong></span>
+                  <span>Selected Date: <strong>{formattedSelectedDate}</strong></span>
                 </div>
-                <span className="font-mono text-slate-400 px-1.5 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px]">
-                  Day: {derivedDay}
+                <span className="font-mono text-slate-300 px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] font-semibold">
+                  {derivedDay}
                 </span>
               </div>
             </div>
 
-            {/* 3. Classroom Venue Selection (Building A only) */}
-            <div>
-              <label className="block text-slate-300 font-semibold mb-1">
-                Classroom (Building A) *
-              </label>
-              <select
-                value={room}
-                onChange={(e) => {
-                  setRoom(e.target.value);
-                  setError('');
-                }}
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white focus:outline-hidden focus:border-sky-400 font-mono text-xs cursor-pointer"
-              >
-                <option value="">-- Choose a Classroom (Building A) --</option>
-                {BOOKABLE_ROOMS.map(r => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* 4. Timeslot Selection */}
+            {/* STEP 2: Time Slot Selection */}
             <div className="space-y-2 bg-slate-950/70 border border-slate-800 rounded-lg p-3">
               <div className="flex items-center justify-between">
-                <label className="text-slate-300 font-semibold flex items-center gap-1.5">
-                  <Clock className="w-4 h-4 text-sky-400" />
-                  <span>Select Time Slots *</span>
+                <label className="text-slate-200 font-bold flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-sky-950 border border-sky-800 text-sky-400 text-[11px] flex items-center justify-center font-mono">
+                    2
+                  </span>
+                  <span>Select Time Slot(s) *</span>
                 </label>
                 {selectedSlots.length > 0 ? (
                   <div className="flex items-center gap-2">
@@ -641,12 +674,12 @@ export function MakeupClassBookingModal({
                       onClick={() => setSelectedSlots([])}
                       className="text-[11px] text-slate-400 hover:text-rose-400 underline cursor-pointer"
                     >
-                      Clear all
+                      Clear
                     </button>
                   </div>
                 ) : (
                   <span className="text-[11px] text-slate-500 font-mono">
-                    None selected
+                    Click time slot(s) to select
                   </span>
                 )}
               </div>
@@ -661,29 +694,32 @@ export function MakeupClassBookingModal({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                     {SCHEDULE_DATA.meta.timeSlots.slice(0, 4).map(slot => {
                       const isSelected = selectedSlots.includes(slot);
-                      const hasConflict = isSlotConflicted(slot);
+                      const isPassed = isSlotPassed(slot);
 
                       return (
                         <button
                           key={slot}
                           type="button"
-                          onClick={() => handleToggleSlot(slot)}
-                          className={`px-2 py-1.5 rounded-md text-xs font-mono transition-all border text-center cursor-pointer ${
-                            isSelected
-                              ? hasConflict
-                                ? 'bg-rose-950/80 border-rose-600 text-rose-200 ring-2 ring-rose-500 font-bold'
-                                : 'bg-emerald-600 border-emerald-500 text-white font-bold shadow-xs'
-                              : hasConflict
-                              ? 'bg-slate-950/60 border-slate-800 text-slate-500 hover:text-slate-400 hover:border-slate-700'
-                              : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850 hover:text-white'
+                          disabled={isPassed}
+                          onClick={() => !isPassed && handleToggleSlot(slot)}
+                          className={`px-2 py-2 rounded-md text-xs font-mono transition-all border text-center ${
+                            isPassed
+                              ? 'bg-slate-950/40 border-slate-900 text-slate-600 line-through cursor-not-allowed opacity-50'
+                              : isSelected
+                              ? 'bg-emerald-600 border-emerald-400 text-white font-bold shadow-xs ring-1 ring-emerald-300 cursor-pointer'
+                              : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850 hover:text-white cursor-pointer'
                           }`}
                         >
                           <div className="font-semibold">{slot}</div>
-                          {hasConflict && (
-                            <div className="text-[9px] text-rose-400 font-sans mt-0.5">
-                              {isSelected ? 'Conflict' : 'Occupied'}
-                            </div>
-                          )}
+                          <div className={`text-[10px] mt-0.5 ${
+                            isPassed 
+                              ? 'text-slate-600 font-medium' 
+                              : isSelected 
+                              ? 'text-emerald-100 font-bold' 
+                              : 'text-slate-500'
+                          }`}>
+                            {isPassed ? 'Passed' : isSelected ? '✓ Selected' : 'Available'}
+                          </div>
                         </button>
                       );
                     })}
@@ -698,81 +734,263 @@ export function MakeupClassBookingModal({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                     {SCHEDULE_DATA.meta.timeSlots.slice(4, 8).map(slot => {
                       const isSelected = selectedSlots.includes(slot);
-                      const hasConflict = isSlotConflicted(slot);
+                      const isPassed = isSlotPassed(slot);
 
                       return (
                         <button
                           key={slot}
                           type="button"
-                          onClick={() => handleToggleSlot(slot)}
-                          className={`px-2 py-1.5 rounded-md text-xs font-mono transition-all border text-center cursor-pointer ${
-                            isSelected
-                              ? hasConflict
-                                ? 'bg-rose-950/80 border-rose-600 text-rose-200 ring-2 ring-rose-500 font-bold'
-                                : 'bg-emerald-600 border-emerald-500 text-white font-bold shadow-xs'
-                              : hasConflict
-                              ? 'bg-slate-950/60 border-slate-800 text-slate-500 hover:text-slate-400 hover:border-slate-700'
-                              : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850 hover:text-white'
+                          disabled={isPassed}
+                          onClick={() => !isPassed && handleToggleSlot(slot)}
+                          className={`px-2 py-2 rounded-md text-xs font-mono transition-all border text-center ${
+                            isPassed
+                              ? 'bg-slate-950/40 border-slate-900 text-slate-600 line-through cursor-not-allowed opacity-50'
+                              : isSelected
+                              ? 'bg-emerald-600 border-emerald-400 text-white font-bold shadow-xs ring-1 ring-emerald-300 cursor-pointer'
+                              : 'bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850 hover:text-white cursor-pointer'
                           }`}
                         >
                           <div className="font-semibold">{slot}</div>
-                          {hasConflict && (
-                            <div className="text-[9px] text-rose-400 font-sans mt-0.5">
-                              {isSelected ? 'Conflict' : 'Occupied'}
-                            </div>
-                          )}
+                          <div className={`text-[10px] mt-0.5 ${
+                            isPassed 
+                              ? 'text-slate-600 font-medium' 
+                              : isSelected 
+                              ? 'text-emerald-100 font-bold' 
+                              : 'text-slate-500'
+                          }`}>
+                            {isPassed ? 'Passed' : isSelected ? '✓ Selected' : 'Available'}
+                          </div>
                         </button>
                       );
                     })}
                   </div>
                 </div>
               </div>
-
-              {/* Conflict / Availability Feedback */}
-              {slotConflicts.length > 0 ? (
-                <div className="p-3 rounded-lg bg-rose-950/70 border border-rose-800 text-rose-200 text-xs space-y-1 mt-2">
-                  <div className="flex items-center gap-1.5 font-bold text-rose-300">
-                    <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-                    <span>Room Conflict Warning — Cannot Reserve Selected Slots:</span>
-                  </div>
-                  <ul className="list-disc pl-5 space-y-1 text-[11px] text-rose-200 pt-0.5">
-                    {slotConflicts.map(c => (
-                      <li key={c.slot}>
-                        <span className="font-mono font-bold text-white">{c.slot}</span>: {c.reason}
-                      </li>
-                    ))}
-                  </ul>
-                  <p className="text-[10px] text-rose-300 pt-1 font-medium">
-                    Please deselect conflicting slots or change the classroom before confirming.
-                  </p>
-                </div>
-              ) : selectedSlots.length > 0 && room ? (
-                <div className="p-2 rounded bg-emerald-950/40 border border-emerald-900/60 text-emerald-300 flex items-center gap-2 text-[11px] mt-1">
-                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                  <span>
-                    <strong>{room}</strong> is free for all {selectedSlots.length} selected slot(s) on {derivedDay}.
-                  </span>
-                </div>
-              ) : !room && selectedSlots.length > 0 ? (
-                <div className="p-2 rounded bg-sky-950/40 border border-sky-850 text-sky-300 flex items-center gap-2 text-[11px] mt-1">
-                  <Clock className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                  <span>Please choose a classroom above to check room availability for your selected slots.</span>
-                </div>
-              ) : null}
             </div>
 
-            {/* 5. Booking Reason / Note (Optional) */}
-            <div>
-              <label className="block text-slate-300 font-semibold mb-1">
-                Booking Note (Optional)
+            {/* STEP 3: Available Rooms for Date & Time Selected */}
+            <div className="space-y-2.5 bg-slate-950/70 border border-slate-800 rounded-lg p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <label className="text-slate-200 font-bold flex items-center gap-2">
+                  <span className="w-5 h-5 rounded-full bg-sky-950 border border-sky-800 text-sky-400 text-[11px] flex items-center justify-center font-mono">
+                    3
+                  </span>
+                  <span>Available Classrooms *</span>
+                </label>
+
+                {selectedSlots.length > 0 && (
+                  <span className="text-[11px] font-mono px-2 py-0.5 rounded bg-emerald-950/90 text-emerald-300 border border-emerald-800">
+                    <strong>{roomAvailability.availableRooms.length}</strong> free for selected slot(s)
+                  </span>
+                )}
+              </div>
+
+              {selectedSlots.length === 0 ? (
+                <div className="p-3.5 rounded-lg bg-slate-900 border border-slate-800 text-center text-slate-400 space-y-1">
+                  <Clock className="w-5 h-5 mx-auto text-sky-400/80 mb-1" />
+                  <p className="font-semibold text-slate-300 text-xs">
+                    Select your time slot(s) above to view free classrooms.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {/* Building Filter Tabs (Building A vs Building J) */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
+                    <span className="text-slate-400 font-medium mr-1 shrink-0">Filter Building:</span>
+                    <button
+                      type="button"
+                      onClick={() => setBuildingFilter('ALL')}
+                      className={`px-2.5 py-1 rounded transition-colors cursor-pointer shrink-0 ${
+                        buildingFilter === 'ALL'
+                          ? 'bg-sky-500 text-slate-950 font-bold'
+                          : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      All Buildings ({roomAvailability.availableRooms.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBuildingFilter('A')}
+                      className={`px-2.5 py-1 rounded transition-colors cursor-pointer shrink-0 ${
+                        buildingFilter === 'A'
+                          ? 'bg-emerald-500 text-slate-950 font-bold'
+                          : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Building A ({roomAvailability.availableRooms.filter(r => r.includes('A-')).length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBuildingFilter('J')}
+                      className={`px-2.5 py-1 rounded transition-colors cursor-pointer shrink-0 ${
+                        buildingFilter === 'J'
+                          ? 'bg-amber-500 text-slate-950 font-bold'
+                          : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      Building J Shared Labs ({roomAvailability.availableRooms.filter(r => r.includes('J-')).length})
+                    </button>
+                  </div>
+
+                  {/* Building J Unconfirmed Availability Note */}
+                  <div className="p-2 rounded-lg bg-amber-950/25 border border-amber-800/50 text-amber-300 text-[11px] flex items-start gap-1.5">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Building J Note:</strong> Computer labs in Building J are shared across departments; availability is unconfirmed and subject to lab staff permission.
+                    </span>
+                  </div>
+
+                  {/* Room Selection Grid */}
+                  {filteredAvailableRooms.length === 0 ? (
+                    <div className="p-3 rounded-lg bg-amber-950/40 border border-amber-800 text-amber-200 text-xs">
+                      No classrooms in this building are free during the selected slot. Try selecting a different building or time slot.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-56 overflow-y-auto pr-1">
+                      {filteredAvailableRooms.map(r => {
+                        const isSelected = room === r;
+                        const isBldgA = r.includes('A-');
+
+                        return (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => {
+                              setRoom(r);
+                              setError('');
+                            }}
+                            className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
+                              isSelected
+                                ? 'bg-emerald-950/90 border-emerald-400 text-white ring-2 ring-emerald-400 shadow-md'
+                                : 'bg-slate-900 hover:bg-slate-850 border-slate-800 text-slate-300 hover:border-slate-700'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full mb-1">
+                              <span className="font-mono font-bold text-sm text-white">{r}</span>
+                              {isSelected ? (
+                                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                              ) : (
+                                <Building2 className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              )}
+                            </div>
+                            <div className="text-[10px] text-slate-400 flex items-center justify-between">
+                              <span className={isBldgA ? 'text-slate-400' : 'text-amber-400/90 font-medium'}>
+                                {isBldgA ? 'Building A' : 'Building J (Shared)'}
+                              </span>
+                              <span className={`font-semibold ${isSelected ? 'text-emerald-300' : 'text-slate-400'}`}>
+                                {isSelected ? 'Selected' : 'Free'}
+                              </span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Selected Room Feedback (Simple & Concise) */}
+                  {room && (
+                    <div className="p-2 rounded-lg bg-emerald-950/60 border border-emerald-800 text-emerald-200 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>
+                          Selected: <strong className="text-white font-mono">{room}</strong> ({room.includes('A-') ? 'Building A' : 'Building J · Shared Lab'})
+                        </span>
+                      </div>
+                      <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-900 border border-emerald-700 font-bold uppercase">
+                        Ready
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Toggle: Occupied Classrooms Explanation */}
+                  {roomAvailability.occupiedRooms.length > 0 && (
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowOccupiedList(prev => !prev)}
+                        className="text-[11px] text-slate-400 hover:text-slate-200 flex items-center gap-1 cursor-pointer transition-colors"
+                      >
+                        {showOccupiedList ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        <span>
+                          {showOccupiedList ? 'Hide' : 'View'} occupied rooms ({roomAvailability.occupiedRooms.length})
+                        </span>
+                      </button>
+
+                      {showOccupiedList && (
+                        <div className="mt-2 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 space-y-1.5 text-[11px] max-h-40 overflow-y-auto">
+                          <span className="text-slate-400 font-semibold block text-[10px] uppercase">
+                            Occupied Classrooms:
+                          </span>
+                          {roomAvailability.occupiedRooms.map(o => (
+                            <div key={o.room} className="flex items-start justify-between gap-2 py-0.5 border-b border-slate-800/60 last:border-0 text-slate-300">
+                              <span className="font-mono font-bold text-slate-200 shrink-0">{o.room}:</span>
+                              <span className="text-slate-400 text-right truncate text-[10px]">{o.reason}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* STEP 4: Class Details */}
+            <div className="space-y-3 bg-slate-950/70 border border-slate-800 rounded-lg p-3">
+              <label className="text-slate-200 font-bold flex items-center gap-2">
+                <span className="w-5 h-5 rounded-full bg-sky-950 border border-sky-800 text-sky-400 text-[11px] flex items-center justify-center font-mono">
+                  4
+                </span>
+                <span>Class / Subject Details *</span>
               </label>
-              <input
-                type="text"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="e.g. Midterm make-up session"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:border-sky-400 text-xs"
-              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Course / Subject Name *
+                  </label>
+                  <input
+                    type="text"
+                    value={course}
+                    onChange={(e) => {
+                      setCourse(e.target.value);
+                      setError('');
+                    }}
+                    placeholder="e.g. Fundamental Concept of Data Security"
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:border-sky-400 text-xs"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Cohort / Group *
+                  </label>
+                  <select
+                    value={groupId}
+                    onChange={(e) => setGroupId(e.target.value)}
+                    className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-md text-white font-mono focus:outline-hidden focus:border-sky-400 text-xs cursor-pointer"
+                  >
+                    {SCHEDULE_DATA.groups.map(g => (
+                      <option key={g.id} value={g.id}>{g.id}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Booking Reason / Note (Optional) */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Booking Note / Lecturer Info (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="e.g. Replaces cancelled lecture from Oct 20"
+                  className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:border-sky-400 text-xs"
+                />
+              </div>
             </div>
 
             {/* Submit & Cancel Buttons */}
@@ -786,38 +1004,37 @@ export function MakeupClassBookingModal({
               </button>
               <button
                 type="submit"
-                disabled={slotConflicts.length > 0 || selectedSlots.length === 0}
+                disabled={!room || selectedSlots.length === 0 || !course.trim()}
                 className="px-5 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-800 disabled:text-slate-500 disabled:border disabled:border-slate-700 text-white font-bold transition-all shadow-md cursor-pointer disabled:cursor-not-allowed flex items-center gap-1.5"
               >
-                {slotConflicts.length > 0 ? (
-                  <>
-                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Cannot Confirm (Slot Conflict)</span>
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Confirm Reservation ({selectedSlots.length} slot{selectedSlots.length > 1 ? 's' : ''})</span>
-                  </>
-                )}
+                <Check className="w-4 h-4" />
+                <span>
+                  {room ? `Confirm Booking: ${room} (${selectedSlots.length} slot${selectedSlots.length > 1 ? 's' : ''})` : 'Select a Classroom Above'}
+                </span>
               </button>
             </div>
           </form>
         ) : (
           /* Active Bookings Tab */
           <div className="p-4 sm:p-5 space-y-3 overflow-y-auto max-h-[75vh]">
-            {existingBookings.length === 0 ? (
+            {activeExistingBookings.length === 0 ? (
               <div className="text-center py-8 text-slate-500 space-y-2">
                 <CalendarIcon className="w-8 h-8 mx-auto text-slate-600" />
                 <p className="text-xs">No active make-up bookings found.</p>
+                <p className="text-[11px] text-slate-600">
+                  (Expired sessions are automatically cleared from the schedule and database)
+                </p>
               </div>
             ) : (
               <div className="space-y-2.5">
-                <div className="text-slate-400 text-xs font-semibold">
-                  Active Reservations ({existingBookings.length}):
+                <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
+                  <span>Active Reservations ({activeExistingBookings.length}):</span>
+                  <span className="text-[11px] text-slate-500 font-normal">
+                    Auto-expires once class period concludes
+                  </span>
                 </div>
 
-                {existingBookings.map((b) => (
+                {activeExistingBookings.map((b) => (
                   <div 
                     key={b.id} 
                     className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-slate-700 flex items-start justify-between gap-3 transition-colors"
@@ -828,6 +1045,9 @@ export function MakeupClassBookingModal({
                         <span className="font-bold text-white text-sm">{b.course}</span>
                         <span className="px-2 py-0.5 rounded text-[11px] bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono font-bold">
                           Group: {b.groupId}
+                        </span>
+                        <span className="px-2 py-0.5 rounded text-[10px] bg-sky-950 text-sky-400 border border-sky-800 font-medium">
+                          Active
                         </span>
                       </div>
 

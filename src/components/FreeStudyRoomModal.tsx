@@ -21,7 +21,7 @@ import {
   getCurrentOrClosestSlot, 
   parseSlotMinutes 
 } from '../data/scheduleData';
-import { MakeupClassBooking } from './MakeupClassBookingModal';
+import { isBookingExpired, MakeupClassBooking } from './MakeupClassBookingModal';
 
 interface FreeStudyRoomModalProps {
   isOpen: boolean;
@@ -63,12 +63,14 @@ export function FreeStudyRoomModal({
     const timeSlots = SCHEDULE_DATA.meta.timeSlots;
     const currentSlotIndex = timeSlots.indexOf(selectedSlot);
 
+    const activeMakeups = makeupBookings.filter(m => !isBookingExpired(m));
+
     return FREE_STUDY_ROOMS.map(room => {
       // Find session in this room at this slot & day
       const currentSession = ALL_SESSIONS.find(
         s => s.room.trim() === room && s.day === selectedDay && s.time === selectedSlot
       );
-      const currentMakeup = makeupBookings.find(
+      const currentMakeup = activeMakeups.find(
         m => m.room.trim() === room && 
           m.day === selectedDay && 
           (m.timeSlots ? m.timeSlots.includes(selectedSlot) : (m.time === selectedSlot || m.time.includes(selectedSlot)))
@@ -86,7 +88,7 @@ export function FreeStudyRoomModal({
           const hasClass = ALL_SESSIONS.some(
             s => s.room.trim() === room && s.day === selectedDay && s.time === slotToCheck
           );
-          const hasMakeup = makeupBookings.some(
+          const hasMakeup = activeMakeups.some(
             m => m.room.trim() === room && 
               m.day === selectedDay && 
               (m.timeSlots ? m.timeSlots.includes(slotToCheck) : (m.time === slotToCheck || m.time.includes(slotToCheck)))
@@ -122,7 +124,7 @@ export function FreeStudyRoomModal({
         freeUntil,
         consecutiveFreeSlots,
         totalDaySessions: ALL_SESSIONS.filter(s => s.room.trim() === room && s.day === selectedDay).length +
-          makeupBookings.filter(m => m.room.trim() === room && m.day === selectedDay).length
+          activeMakeups.filter(m => m.room.trim() === room && m.day === selectedDay).length
       };
     });
   }, [selectedDay, selectedSlot, makeupBookings]);
@@ -307,14 +309,14 @@ export function FreeStudyRoomModal({
               <p className="text-xs text-slate-400">All classrooms in this building currently have scheduled lectures or lab sessions.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {filteredRooms.map((item) => {
                 const isConfirmedA = item.isBuildingA;
 
                 return (
                   <div
                     key={item.room}
-                    className={`p-3.5 rounded-lg border transition-all ${
+                    className={`p-3 rounded-lg border transition-all flex flex-col justify-between gap-2.5 ${
                       item.isFree
                         ? isConfirmedA
                           ? 'bg-emerald-950/20 border-emerald-800/80 hover:border-emerald-500'
@@ -322,9 +324,9 @@ export function FreeStudyRoomModal({
                         : 'bg-slate-900/60 border-slate-800 opacity-75'
                     }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 font-mono font-bold text-xs ${
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 font-mono font-bold text-xs ${
                           item.isFree && isConfirmedA
                             ? 'bg-emerald-900/80 text-emerald-200 border border-emerald-700'
                             : 'bg-slate-800 text-slate-400 border border-slate-700'
@@ -332,11 +334,11 @@ export function FreeStudyRoomModal({
                           {item.building}
                         </div>
                         <div>
-                          <h4 className="font-bold text-sm text-white flex items-center gap-1.5">
-                            <span>{item.room}</span>
+                          <h4 className="font-bold text-sm text-white leading-tight">
+                            {item.room}
                           </h4>
                           <span className="text-[11px] text-slate-400 font-mono">
-                            Building {item.building} · {isConfirmedA ? 'IP Classroom' : 'Shared Lab'}
+                            {isConfirmedA ? 'Building A' : 'Building J · Shared Lab'}
                           </span>
                         </div>
                       </div>
@@ -345,71 +347,40 @@ export function FreeStudyRoomModal({
                         item.isFree
                           ? isConfirmedA
                             ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
-                            : 'bg-slate-800 text-slate-300 border border-slate-700'
+                            : 'bg-amber-950/70 text-amber-300 border border-amber-800/80'
                           : 'bg-rose-950 text-rose-300 border border-rose-800'
                       }`}>
                         {item.isFree 
-                          ? isConfirmedA ? 'CONFIRMED FREE' : 'UNCONFIRMED' 
-                          : 'OCCUPIED'}
+                          ? isConfirmedA ? 'Free' : 'Shared (Unconfirmed)' 
+                          : 'Occupied'}
                       </span>
                     </div>
 
-                    {/* Details */}
-                    <div className="mt-3 pt-2.5 border-t border-slate-800/80 text-xs">
+                    {/* Concise Status Line */}
+                    <div className="pt-2 border-t border-slate-800/80 flex items-center justify-between gap-2 text-xs">
                       {item.isFree ? (
-                        <div className="space-y-1">
-                          <div className={`flex items-center gap-1.5 font-medium ${isConfirmedA ? 'text-emerald-300' : 'text-slate-300'}`}>
-                            {isConfirmedA ? (
-                              <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                            ) : (
-                              <AlertTriangle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                            )}
-                            <span>
-                              {isConfirmedA
-                                ? 'No IP class scheduled (Confirmed Available).'
-                                : 'No IP class scheduled (Shared Lab - Unconfirmed).'}
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-slate-400">
-                            {item.freeUntil
-                              ? `Available until ${item.freeUntil} (next class starts)`
-                              : 'Available for the rest of today'}
-                          </p>
-                          {!isConfirmedA && (
-                            <p className="text-[10px] text-slate-500 italic">
-                              *IP program does not have full control over Building J computer labs.
-                            </p>
-                          )}
-                        </div>
+                        <span className={isConfirmedA ? 'text-emerald-300 font-medium' : 'text-slate-300'}>
+                          {item.freeUntil ? `Free until ${item.freeUntil}` : 'Free all day'}
+                        </span>
                       ) : (
-                        <div className="space-y-1 text-slate-300">
-                          <div className="flex items-center gap-1 font-semibold text-rose-300">
-                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                            <span className="truncate">{item.currentSession?.course}</span>
-                          </div>
-                          <div className="text-[11px] text-slate-400 flex items-center justify-between">
-                            <span>{item.currentSession?.lecturer}</span>
-                            <span className="font-mono text-slate-300">{item.currentSession?.groupId}</span>
-                          </div>
-                        </div>
+                        <span className="text-rose-300 truncate font-medium">
+                          {item.currentSession?.course} ({item.currentSession?.groupId})
+                        </span>
                       )}
-                    </div>
 
-                    {onSelectRoom && (
-                      <div className="mt-2.5 pt-2 border-t border-slate-800/60 flex justify-end">
+                      {onSelectRoom && (
                         <button
                           onClick={() => {
                             onSelectRoom(item.room);
                             onClose();
                           }}
-                          className="text-[11px] text-sky-400 hover:text-sky-300 font-medium flex items-center gap-1 transition-colors"
+                          className="text-[11px] text-sky-400 hover:text-sky-300 font-medium flex items-center gap-1 shrink-0 transition-colors cursor-pointer"
                         >
-                          <span>View full room schedule</span>
+                          <span>Schedule</span>
                           <ExternalLink className="w-3 h-3" />
                         </button>
-                      </div>
-                    )}
-
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -420,7 +391,7 @@ export function FreeStudyRoomModal({
         {/* Modal Footer */}
         <div className="p-3 sm:p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
           <div className="text-[11px]">
-            Building A rooms are 100% verified by IP Program · Building J labs are shared across departments.
+            Note: Building J labs are shared across departments; availability is unconfirmed.
           </div>
           <button
             onClick={onClose}

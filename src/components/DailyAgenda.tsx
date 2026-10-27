@@ -7,7 +7,7 @@ import {
   getCambodiaTime,
   getSlotLiveStatus
 } from '../data/scheduleData';
-import { MakeupClassBooking } from './MakeupClassBookingModal';
+import { isBookingExpired, MakeupClassBooking } from './MakeupClassBookingModal';
 import { Calendar, Clock, MapPin, User, Bookmark, CheckCircle2 } from 'lucide-react';
 
 interface DailyAgendaProps {
@@ -33,21 +33,35 @@ export function DailyAgenda({
   const days = SCHEDULE_DATA.meta.days;
   const timeSlots = SCHEDULE_DATA.meta.timeSlots;
 
-  // Compile regular + make-up sessions
-  const combinedSessions: ScheduleSession[] = [
-    ...ALL_SESSIONS,
-    ...makeupBookings.map(m => ({
+  // Filter out expired bookings
+  const activeMakeups = makeupBookings.filter(m => !isBookingExpired(m));
+
+  // Overwrite regular classes with make-up classes on the same day, time, and group
+  const regularFiltered = ALL_SESSIONS.filter(reg => {
+    const isOverwritten = activeMakeups.some(m => 
+      m.groupId === reg.groupId &&
+      m.day === reg.day &&
+      (m.timeSlots ? m.timeSlots.includes(reg.time) : (m.time === reg.time || m.time.includes(reg.time)))
+    );
+    return !isOverwritten;
+  });
+
+  const makeupSessions: ScheduleSession[] = activeMakeups.flatMap(m => {
+    const slots = (m.timeSlots && m.timeSlots.length > 0) ? m.timeSlots : [m.time];
+    return slots.map(slot => ({
       day: m.day,
-      time: m.time,
+      time: slot,
       course: `${m.course} [Make-up]`,
       type: 'Lecture' as const,
       lecturer: `Reserved by ${m.bookedBy}${m.date ? ` (${m.date})` : ''}`,
       room: m.room,
       groupId: m.groupId,
       groupName: m.groupId,
-      cohort: m.generation
-    }))
-  ];
+      cohort: m.generation || (m.groupId.split('-')[0])
+    }));
+  });
+
+  const combinedSessions: ScheduleSession[] = [...regularFiltered, ...makeupSessions];
 
   // Filter sessions for the selected day
   const sessionsOnDay = combinedSessions.filter(s => {

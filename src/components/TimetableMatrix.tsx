@@ -7,7 +7,7 @@ import {
   getCambodiaTime,
   getSlotLiveStatus
 } from '../data/scheduleData';
-import { MakeupClassBooking } from './MakeupClassBookingModal';
+import { isBookingExpired, MakeupClassBooking } from './MakeupClassBookingModal';
 import { 
   Search, 
   MapPin, 
@@ -20,7 +20,8 @@ import {
   Check,
   RefreshCw,
   Building2,
-  ExternalLink
+  ExternalLink,
+  Sparkles
 } from 'lucide-react';
 
 interface TimetableMatrixProps {
@@ -56,6 +57,9 @@ export function TimetableMatrix({
   const days = SCHEDULE_DATA.meta.days;
   const timeSlots = SCHEDULE_DATA.meta.timeSlots;
 
+  // Filter out expired bookings
+  const activeMakeupBookings = makeupBookings.filter(m => !isBookingExpired(m));
+
   // Filter available groups based on selected cohort (for class monitor view)
   const filteredGroups = selectedCohort === 'ALL'
     ? SCHEDULE_DATA.groups
@@ -66,17 +70,18 @@ export function TimetableMatrix({
 
   const isMyCohort = myCohort === activeGroup.id;
 
-  // Helper to find session for day and time slot (including booked make-up sessions)
+  // Helper to find session for day and time slot
+  // CRITICAL REQUIREMENT: Make-up class bookings OVERWRITE any regular scheduled class on that time slot!
   const getSessionForSlot = (day: string, slot: string): ScheduleSession | undefined => {
-    const regular = activeGroup.schedule.find(s => s.day === day && s.time === slot);
-    if (regular) return regular;
-
-    const makeup = makeupBookings.find(m => 
+    // 1. Check make-up bookings FIRST (Overwrites regular class if class was cancelled)
+    const makeup = activeMakeupBookings.find(m => 
       m.groupId === activeGroup.id && 
       m.day === day && 
       (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot)))
     );
+
     if (makeup) {
+      const regularClass = activeGroup.schedule.find(s => s.day === day && s.time === slot);
       return {
         day: makeup.day,
         time: slot,
@@ -86,9 +91,14 @@ export function TimetableMatrix({
         room: makeup.room,
         groupId: makeup.groupId,
         groupName: activeGroup.name,
-        cohort: activeGroup.cohort
-      };
+        cohort: activeGroup.cohort,
+        ...(regularClass ? { overwrittenCourse: regularClass.course } : {})
+      } as ScheduleSession;
     }
+
+    // 2. Fall back to regular scheduled session
+    const regular = activeGroup.schedule.find(s => s.day === day && s.time === slot);
+    if (regular) return regular;
 
     return undefined;
   };
@@ -335,9 +345,15 @@ export function TimetableMatrix({
                             {/* Type and live status */}
                             <div className="flex items-center justify-between gap-1 mb-1.5">
                               <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                isMakeup ? 'bg-amber-950 text-amber-300 border border-amber-800' : typeStyle.badge
+                                isMakeup 
+                                  ? 'bg-amber-950 text-amber-300 border border-amber-800' 
+                                  : typeStyle.badge
                               }`}>
-                                {isMakeup ? 'Make-up' : session.type}
+                                {isMakeup 
+                                  ? (session as any).overwrittenCourse 
+                                    ? 'Make-up (Replaced)' 
+                                    : 'Make-up' 
+                                  : session.type}
                               </span>
                               {status?.isCurrent && (
                                 <span className="flex items-center gap-1 text-xs font-bold text-emerald-300">
@@ -351,6 +367,12 @@ export function TimetableMatrix({
                             <h4 className="font-bold text-slate-100 leading-snug line-clamp-2 text-sm sm:text-[15px]">
                               {session.course}
                             </h4>
+
+                            {isMakeup && (session as any).overwrittenCourse && (
+                              <div className="mt-1 text-[11px] text-amber-400/90 line-through truncate font-sans">
+                                Was: {(session as any).overwrittenCourse}
+                              </div>
+                            )}
 
                             {/* Lecturer & Room details */}
                             <div className="mt-2 pt-1.5 border-t border-slate-700/60 space-y-1 text-xs">

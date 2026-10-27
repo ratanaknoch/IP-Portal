@@ -1,7 +1,4 @@
 import { useState } from 'react';
-import TechText from './TechText';
-import DotGrid from './DotGrid';
-import MetallicPaint from './MetallicPaint';
 import { 
   CalendarDays, 
   Users, 
@@ -23,6 +20,9 @@ import {
   KeyRound
 } from 'lucide-react';
 import { getCambodiaTime, SCHEDULE_DATA } from '../data/scheduleData';
+import TechText from './TechText';
+import DotGrid from './DotGrid';
+import MetallicPaint from './MetallicPaint';
 import { UserProfile } from '../lib/firebase';
 
 interface LandingPortalProps {
@@ -75,7 +75,7 @@ export function LandingPortal({
 
   const cambodiaTime = getCambodiaTime();
 
-  // Strict user specification: All letters are pure white except PORTAL which is blue
+  // Pure white & sky-blue color palette for the portal title
   const letterColor = '#ffffff';
   const portalBlueColor = '#38bdf8';
   const accentHighlight = '#38bdf8';
