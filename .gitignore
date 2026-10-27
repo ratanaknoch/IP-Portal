@@ -30,3 +30,20 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# AI Studio internal artifacts & temporary media attachments (never push to repo)
+.aistudio
+.aistudio/
+.aistudio/**
+.tempmediaStorage
+.tempmediaStorage/
+public/assets/aistudio
+public/assets/aistudio/
+public/assets/aistudio/**
+
+# Python / Script caches
+__pycache__
+__pycache__/
+*.py[cod]
+*$py.class
+

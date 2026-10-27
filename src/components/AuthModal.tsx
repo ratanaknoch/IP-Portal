@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   ShieldCheck, 
   AlertCircle, 
-  UserCheck, 
-  KeyRound
+  UserCheck
 } from 'lucide-react';
 import { loginWithGoogle, UserProfile } from '../lib/firebase';
 import MetallicPaint from './MetallicPaint';
 
 interface AuthModalProps {
   isOpen: boolean;
+  mode?: 'google' | 'admin';
   onClose: () => void;
   onLoginSuccess: (userProfile: UserProfile | null, isNewUser: boolean) => void;
   onAdminLoginSuccess: (adminProfile: UserProfile) => void;
@@ -18,11 +18,11 @@ interface AuthModalProps {
 
 export function AuthModal({
   isOpen,
+  mode = 'google',
   onClose,
   onLoginSuccess,
   onAdminLoginSuccess
 }: AuthModalProps) {
-  const [authMode, setAuthMode] = useState<'google' | 'admin'>('google');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -30,7 +30,13 @@ export function AuthModal({
   const [adminUsername, setAdminUsername] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
 
+  useEffect(() => {
+    setError('');
+  }, [mode, isOpen]);
+
   if (!isOpen) return null;
+
+  const isAdminMode = mode === 'admin';
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
@@ -56,7 +62,7 @@ export function AuthModal({
       if (isCancellation) {
         setError('Sign-in was cancelled.');
       } else if (code === 'auth/popup-blocked') {
-        setError('Popup blocked by browser. Please allow popups or use Bongthom Login.');
+        setError('Popup blocked by browser. Please allow popups for this site and try again.');
       } else if (code === 'auth/unauthorized-domain' || msg.includes('unauthorized-domain')) {
         setError('Domain not authorized in Firebase Console. Please add ip-portal.onrender.com to Authorized Domains.');
       } else {
@@ -107,11 +113,15 @@ export function AuthModal({
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-sky-950 border border-sky-800 flex items-center justify-center text-sky-400 shrink-0">
-              {authMode === 'google' ? <UserCheck className="w-5 h-5" /> : <ShieldCheck className="w-5 h-5 text-amber-400" />}
+            <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+              isAdminMode
+                ? 'bg-amber-950 border border-amber-800 text-amber-400'
+                : 'bg-sky-950 border border-sky-800 text-sky-400'
+            }`}>
+              {isAdminMode ? <ShieldCheck className="w-5 h-5" /> : <UserCheck className="w-5 h-5" />}
             </div>
             <h3 className="text-lg font-bold text-white">
-              {authMode === 'google' ? 'Sign In / Register' : 'Bongthom Login'}
+              {isAdminMode ? 'Bongthom Login' : 'Sign In / Register'}
             </h3>
           </div>
           <button
@@ -127,7 +137,7 @@ export function AuthModal({
         <div className="w-full h-36 relative rounded-xl overflow-hidden bg-slate-950/70 border border-slate-800 flex items-center justify-center shadow-inner group">
           <MetallicPaint
             imageSrc="/assets/cropped-itc_tight.png"
-            color={authMode === 'google' ? '#f8fafc' : '#f59e0b'}
+            color={isAdminMode ? '#f59e0b' : '#f8fafc'}
             edgeBend={0.82}
             softness={0.16}
             distortion={0.07}
@@ -136,33 +146,6 @@ export function AuthModal({
             scale={0.72}
             className="w-full h-full"
           />
-        </div>
-
-        {/* Tab switch */}
-        <div className="grid grid-cols-2 p-1 bg-slate-950 border border-slate-800 rounded-xl text-xs sm:text-sm font-semibold">
-          <button
-            type="button"
-            onClick={() => { setAuthMode('google'); setError(''); }}
-            className={`py-2 rounded-lg transition-all cursor-pointer ${
-              authMode === 'google'
-                ? 'bg-slate-800 text-white shadow-xs font-bold'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            Google
-          </button>
-          <button
-            type="button"
-            onClick={() => { setAuthMode('admin'); setError(''); }}
-            className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              authMode === 'admin'
-                ? 'bg-amber-950/70 border border-amber-800/80 text-amber-200 shadow-xs font-bold'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <KeyRound className="w-4 h-4" />
-            <span>Bongthom</span>
-          </button>
         </div>
 
         {error && (
@@ -178,8 +161,8 @@ export function AuthModal({
           </div>
         )}
 
-        {/* Google Auth Body */}
-        {authMode === 'google' ? (
+        {/* Auth Body */}
+        {!isAdminMode ? (
           <div className="pt-1">
             <button
               onClick={handleGoogleSignIn}
@@ -208,7 +191,7 @@ export function AuthModal({
             </button>
           </div>
         ) : (
-          /* Admin Login Body */
+          /* Admin Login Body (Only accessible via /bongthom URL) */
           <form onSubmit={handleAdminSignIn} className="space-y-3 pt-1">
             <div>
               <label className="block text-xs sm:text-sm font-semibold text-slate-300 mb-1">

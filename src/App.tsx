@@ -90,7 +90,24 @@ export default function App() {
   } | null>(null);
 
   // Modals for Auth / Onboarding / Admin / Notifications Inbox
-  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => {
+    try {
+      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      const h = window.location.hash.toLowerCase();
+      return p === '/bongthom' || p === '/login' || p === '/auth' || h === '#/bongthom' || h === '#bongthom';
+    } catch {
+      return false;
+    }
+  });
+  const [authModalMode, setAuthModalMode] = useState<'google' | 'admin'>(() => {
+    try {
+      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      const h = window.location.hash.toLowerCase();
+      return p === '/bongthom' || h === '#/bongthom' || h === '#bongthom' ? 'admin' : 'google';
+    } catch {
+      return 'google';
+    }
+  });
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState<boolean>(false);
   const [isAdminDashboardOpen, setIsAdminDashboardOpen] = useState<boolean>(false);
   const [isInboxOpen, setIsInboxOpen] = useState<boolean>(false);
@@ -192,6 +209,12 @@ export default function App() {
       setIsBookingModalOpen(true);
       setCurrentView('schedule');
     } else if (cleanPath === '/login' || cleanPath === '/auth') {
+      setCurrentView(prev => (prev === 'schedule' ? 'schedule' : 'landing'));
+      setAuthModalMode('google');
+      setIsAuthModalOpen(true);
+    } else if (cleanPath === '/bongthom' || window.location.hash.toLowerCase() === '#/bongthom' || window.location.hash.toLowerCase() === '#bongthom') {
+      setCurrentView(prev => (prev === 'schedule' ? 'schedule' : 'landing'));
+      setAuthModalMode('admin');
       setIsAuthModalOpen(true);
     } else if (cleanPath === '/release-notes' || cleanPath === '/changelog') {
       setCurrentView('release-notes');
@@ -211,7 +234,7 @@ export default function App() {
     }
   }, []);
 
-  // Listen to popstate (browser back/forward buttons)
+  // Listen to popstate and hashchange (browser back/forward or URL hash navigation)
   useEffect(() => {
     const handlePopState = () => {
       applyRoute(window.location.pathname, window.location.search);
@@ -220,8 +243,10 @@ export default function App() {
     applyRoute(window.location.pathname, window.location.search);
 
     window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
     return () => {
       window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
     };
   }, [applyRoute]);
 
@@ -636,6 +661,7 @@ export default function App() {
         // ignore
       }
       setCurrentView('landing');
+      setAuthModalMode('google');
       setIsAuthModalOpen(true);
       navigateTo('/login');
     }
@@ -645,6 +671,7 @@ export default function App() {
   const handleEnterStudentSchedule = (targetGroupId?: string, profileOverride?: UserProfile | null) => {
     const activeUser = profileOverride !== undefined ? profileOverride : userProfile;
     if (!activeUser) {
+      setAuthModalMode('google');
       setIsAuthModalOpen(true);
       navigateTo('/login');
       return;
@@ -671,6 +698,7 @@ export default function App() {
   const handleEnterClassMonitor = (genPassword?: string, profileOverride?: UserProfile | null) => {
     const activeUser = profileOverride !== undefined ? profileOverride : userProfile;
     if (!activeUser) {
+      setAuthModalMode('google');
       setIsAuthModalOpen(true);
       navigateTo('/login');
       return;
@@ -687,6 +715,7 @@ export default function App() {
   // Handler to open free study rooms
   const handleOpenFreeRooms = () => {
     if (!userProfile) {
+      setAuthModalMode('google');
       setIsAuthModalOpen(true);
       navigateTo('/login');
       return;
@@ -732,6 +761,7 @@ export default function App() {
           userProfile={userProfile}
           unreadNotificationsCount={unreadNotificationsCount}
           onOpenAuthModal={() => {
+            setAuthModalMode('google');
             setIsAuthModalOpen(true);
             navigateTo('/login');
           }}
@@ -741,6 +771,7 @@ export default function App() {
           onUpgradeToMonitor={handleUpgradeToMonitor}
           onOpenAcademicStatus={() => {
             if (!userProfile) {
+              setAuthModalMode('google');
               setIsAuthModalOpen(true);
               navigateTo('/login');
             } else {
@@ -780,8 +811,10 @@ export default function App() {
         {/* Auth Modal with MetallicPaint */}
         <AuthModal
           isOpen={isAuthModalOpen}
+          mode={authModalMode}
           onClose={() => {
             setIsAuthModalOpen(false);
+            setAuthModalMode('google');
             navigateTo('/');
           }}
           onLoginSuccess={handleGoogleLoginSuccess}
@@ -895,6 +928,7 @@ export default function App() {
         unreadNotificationsCount={unreadNotificationsCount}
         onOpenInbox={() => setIsInboxOpen(true)}
         onOpenAuthModal={() => {
+          setAuthModalMode('google');
           setIsAuthModalOpen(true);
           navigateTo('/login');
         }}
@@ -1168,8 +1202,10 @@ export default function App() {
       {/* Auth Modal with MetallicPaint in Schedule view */}
       <AuthModal
         isOpen={isAuthModalOpen}
+        mode={authModalMode}
         onClose={() => {
           setIsAuthModalOpen(false);
+          setAuthModalMode('google');
           navigateTo(activeMode === 'room' ? '/rooms' : '/schedule');
         }}
         onLoginSuccess={handleGoogleLoginSuccess}
