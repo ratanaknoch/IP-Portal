@@ -18,6 +18,7 @@ import { AcademicStatusModal } from './components/AcademicStatusModal';
 import { ReleaseNotesView } from './components/ReleaseNotesView';
 import { PrivacyPolicyView } from './components/PrivacyPolicyView';
 import { TermsOfServiceView } from './components/TermsOfServiceView';
+import { BongthomLoginView } from './components/BongthomLoginView';
 import { 
   subscribeToMakeupBookings, 
   saveMakeupBooking, 
@@ -41,8 +42,22 @@ export default function App() {
     document.documentElement.classList.add('dark');
   }, []);
 
-  // Top level views: 'landing' | 'schedule' | 'release-notes' | 'privacy' | 'terms'
-  const [currentView, setCurrentView] = useState<'landing' | 'schedule' | 'release-notes' | 'privacy' | 'terms'>('landing');
+  // Top level views: 'landing' | 'schedule' | 'release-notes' | 'privacy' | 'terms' | 'bongthom'
+  const [currentView, setCurrentView] = useState<'landing' | 'schedule' | 'release-notes' | 'privacy' | 'terms' | 'bongthom'>(() => {
+    try {
+      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      const h = window.location.hash.toLowerCase();
+      if (p === '/bongthom' || h === '#/bongthom' || h === '#bongthom') {
+        return 'bongthom';
+      }
+      if (p === '/release-notes' || p === '/changelog') return 'release-notes';
+      if (p === '/privacy' || p === '/privacy-policy') return 'privacy';
+      if (p === '/terms' || p === '/terms-of-service' || p === '/tos') return 'terms';
+    } catch {
+      // ignore
+    }
+    return 'landing';
+  });
   const [portalRole, setPortalRole] = useState<'student' | 'class-monitor'>('student');
   const [activeMonitorGen, setActiveMonitorGen] = useState<string>('Bigboss@67');
 
@@ -93,19 +108,9 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(() => {
     try {
       const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
-      const h = window.location.hash.toLowerCase();
-      return p === '/bongthom' || p === '/login' || p === '/auth' || h === '#/bongthom' || h === '#bongthom';
+      return p === '/login' || p === '/auth';
     } catch {
       return false;
-    }
-  });
-  const [authModalMode, setAuthModalMode] = useState<'google' | 'admin'>(() => {
-    try {
-      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
-      const h = window.location.hash.toLowerCase();
-      return p === '/bongthom' || h === '#/bongthom' || h === '#bongthom' ? 'admin' : 'google';
-    } catch {
-      return 'google';
     }
   });
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState<boolean>(false);
@@ -210,12 +215,12 @@ export default function App() {
       setCurrentView('schedule');
     } else if (cleanPath === '/login' || cleanPath === '/auth') {
       setCurrentView(prev => (prev === 'schedule' ? 'schedule' : 'landing'));
-      setAuthModalMode('google');
       setIsAuthModalOpen(true);
     } else if (cleanPath === '/bongthom' || window.location.hash.toLowerCase() === '#/bongthom' || window.location.hash.toLowerCase() === '#bongthom') {
-      setCurrentView(prev => (prev === 'schedule' ? 'schedule' : 'landing'));
-      setAuthModalMode('admin');
-      setIsAuthModalOpen(true);
+      setCurrentView('bongthom');
+      setIsFreeRoomsOpen(false);
+      setIsBookingModalOpen(false);
+      setIsAuthModalOpen(false);
     } else if (cleanPath === '/release-notes' || cleanPath === '/changelog') {
       setCurrentView('release-notes');
       setIsFreeRoomsOpen(false);
@@ -534,13 +539,14 @@ export default function App() {
     localStorage.setItem('itc_admin_auth', JSON.stringify(adminProfile));
     sessionStorage.setItem('itc_monitor_authorized', 'true');
     setIsAuthModalOpen(false);
+    setCurrentView('landing');
     setIsAdminDashboardOpen(true);
     try {
       await saveUserProfile(adminProfile);
     } catch {
       // ignore
     }
-    navigateTo(currentView === 'landing' ? '/' : '/schedule');
+    navigateTo('/');
   };
 
   const handleGoogleLoginSuccess = (profile: UserProfile | null, isNewUser: boolean) => {
@@ -661,7 +667,6 @@ export default function App() {
         // ignore
       }
       setCurrentView('landing');
-      setAuthModalMode('google');
       setIsAuthModalOpen(true);
       navigateTo('/login');
     }
@@ -671,7 +676,6 @@ export default function App() {
   const handleEnterStudentSchedule = (targetGroupId?: string, profileOverride?: UserProfile | null) => {
     const activeUser = profileOverride !== undefined ? profileOverride : userProfile;
     if (!activeUser) {
-      setAuthModalMode('google');
       setIsAuthModalOpen(true);
       navigateTo('/login');
       return;
@@ -698,7 +702,6 @@ export default function App() {
   const handleEnterClassMonitor = (genPassword?: string, profileOverride?: UserProfile | null) => {
     const activeUser = profileOverride !== undefined ? profileOverride : userProfile;
     if (!activeUser) {
-      setAuthModalMode('google');
       setIsAuthModalOpen(true);
       navigateTo('/login');
       return;
@@ -715,7 +718,6 @@ export default function App() {
   // Handler to open free study rooms
   const handleOpenFreeRooms = () => {
     if (!userProfile) {
-      setAuthModalMode('google');
       setIsAuthModalOpen(true);
       navigateTo('/login');
       return;
@@ -761,7 +763,6 @@ export default function App() {
           userProfile={userProfile}
           unreadNotificationsCount={unreadNotificationsCount}
           onOpenAuthModal={() => {
-            setAuthModalMode('google');
             setIsAuthModalOpen(true);
             navigateTo('/login');
           }}
@@ -771,7 +772,6 @@ export default function App() {
           onUpgradeToMonitor={handleUpgradeToMonitor}
           onOpenAcademicStatus={() => {
             if (!userProfile) {
-              setAuthModalMode('google');
               setIsAuthModalOpen(true);
               navigateTo('/login');
             } else {
@@ -811,14 +811,11 @@ export default function App() {
         {/* Auth Modal with MetallicPaint */}
         <AuthModal
           isOpen={isAuthModalOpen}
-          mode={authModalMode}
           onClose={() => {
             setIsAuthModalOpen(false);
-            setAuthModalMode('google');
             navigateTo('/');
           }}
           onLoginSuccess={handleGoogleLoginSuccess}
-          onAdminLoginSuccess={handleAdminLoginSuccess}
         />
 
         {/* Onboarding Modal for first-time sign-ups */}
@@ -899,6 +896,19 @@ export default function App() {
     );
   }
 
+  // Dedicated Bongthom Admin Login Page (Direct URL /bongthom only)
+  if (currentView === 'bongthom') {
+    return (
+      <BongthomLoginView
+        onAdminLoginSuccess={handleAdminLoginSuccess}
+        onBack={() => {
+          setCurrentView('landing');
+          navigateTo('/');
+        }}
+      />
+    );
+  }
+
   // Active Schedule & Matrix Portal View (Student or Class Monitor)
   const isStudent = portalRole === 'student';
 
@@ -928,7 +938,6 @@ export default function App() {
         unreadNotificationsCount={unreadNotificationsCount}
         onOpenInbox={() => setIsInboxOpen(true)}
         onOpenAuthModal={() => {
-          setAuthModalMode('google');
           setIsAuthModalOpen(true);
           navigateTo('/login');
         }}
@@ -1202,14 +1211,11 @@ export default function App() {
       {/* Auth Modal with MetallicPaint in Schedule view */}
       <AuthModal
         isOpen={isAuthModalOpen}
-        mode={authModalMode}
         onClose={() => {
           setIsAuthModalOpen(false);
-          setAuthModalMode('google');
           navigateTo(activeMode === 'room' ? '/rooms' : '/schedule');
         }}
         onLoginSuccess={handleGoogleLoginSuccess}
-        onAdminLoginSuccess={handleAdminLoginSuccess}
       />
 
       {/* Onboarding Modal in Schedule view */}
