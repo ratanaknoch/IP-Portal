@@ -1,15 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { LandingPortal } from './components/LandingPortal';
-import { Header } from './components/Header';
+import { Header, NavMode } from './components/Header';
 import { QuickStats } from './components/QuickStats';
 import { TimetableMatrix } from './components/TimetableMatrix';
 import { LecturerView } from './components/LecturerView';
 import { RoomView } from './components/RoomView';
 import { DailyAgenda } from './components/DailyAgenda';
 import { ClubsView } from './components/ClubsView';
+import { MakeupClassesView } from './components/MakeupClassesView';
 import { SessionDetailModal } from './components/SessionDetailModal';
 import { FreeStudyRoomModal } from './components/FreeStudyRoomModal';
-import { MakeupClassBookingModal, MakeupClassBooking, isBookingExpired } from './components/MakeupClassBookingModal';
+import {
+  MakeupClassBookingModal,
+  MakeupClassBooking,
+  CancelledClassSession,
+  isBookingExpired,
+  isCancellationExpired
+} from './components/MakeupClassBookingModal';
 import { AuthModal } from './components/AuthModal';
 import { OnboardingModal } from './components/OnboardingModal';
 import { AdminDashboardModal } from './components/AdminDashboardModal';
@@ -22,7 +29,10 @@ import { BongthomLoginView } from './components/BongthomLoginView';
 import { 
   subscribeToMakeupBookings, 
   saveMakeupBooking, 
-  deleteMakeupBooking, 
+  deleteMakeupBooking,
+  subscribeToCancelledClasses,
+  saveCancelledClass,
+  deleteCancelledClass,
   testFirestoreConnection,
   auth,
   getUserProfile,
@@ -131,7 +141,7 @@ export default function App() {
   });
 
   // Active view router modes
-  const [activeMode, setActiveMode] = useState<'matrix' | 'lecturer' | 'room' | 'agenda' | 'clubs'>('matrix');
+  const [activeMode, setActiveMode] = useState<NavMode>('matrix');
   const [selectedCohort, setSelectedCohort] = useState<string>('ALL');
   const [selectedGroup, setSelectedGroup] = useState<string>(myCohort);
   const [selectedLecturer, setSelectedLecturer] = useState<string>('Mr. PICH Reatrey');
@@ -163,7 +173,10 @@ export default function App() {
 
   // Helper: Parse URL on mount and popstate
   const applyRoute = useCallback((pathname: string, search: string) => {
-    const cleanPath = pathname.toLowerCase().replace(/\/$/, '') || '/';
+    const rawPath = pathname.toLowerCase().replace(/\/$/, '') || '/';
+    const cleanPath = rawPath === '/index.html' ? '/' : rawPath.replace(/\/index\.html$/, '') || '/';
+    const hash = window.location.hash.toLowerCase();
+    const lowerSearch = search.toLowerCase();
     const params = new URLSearchParams(search);
     const grpParam = params.get('group');
     const cohortParam = params.get('cohort');
@@ -174,6 +187,29 @@ export default function App() {
       if (matchedG) setSelectedCohort(matchedG.cohort);
     } else if (cohortParam) {
       setSelectedCohort(cohortParam);
+    }
+
+    if (
+      cleanPath === '/bongthom' ||
+      hash === '#/bongthom' ||
+      hash === '#bongthom' ||
+      lowerSearch === '?bongthom' ||
+      params.has('bongthom')
+    ) {
+      setCurrentView('bongthom');
+      setIsFreeRoomsOpen(false);
+      setIsBookingModalOpen(false);
+      setIsAuthModalOpen(false);
+      return;
+    }
+
+    // If browser was redirected to /index.html, clean up URL bar to /
+    if (rawPath === '/index.html') {
+      try {
+        window.history.replaceState(null, '', '/' + search + window.location.hash);
+      } catch {
+        // ignore
+      }
     }
 
     if (cleanPath === '/' || cleanPath === '/home' || cleanPath === '/landing') {
@@ -203,6 +239,11 @@ export default function App() {
       setActiveMode('agenda');
       setIsFreeRoomsOpen(false);
       setIsBookingModalOpen(false);
+    } else if (cleanPath === '/makeup-classes' || cleanPath === '/makeups') {
+      setCurrentView('schedule');
+      setActiveMode('makeup');
+      setIsFreeRoomsOpen(false);
+      setIsBookingModalOpen(false);
     } else if (cleanPath === '/clubs' || cleanPath === '/club') {
       setCurrentView('schedule');
       setActiveMode('clubs');
@@ -216,11 +257,6 @@ export default function App() {
     } else if (cleanPath === '/login' || cleanPath === '/auth') {
       setCurrentView(prev => (prev === 'schedule' ? 'schedule' : 'landing'));
       setIsAuthModalOpen(true);
-    } else if (cleanPath === '/bongthom' || window.location.hash.toLowerCase() === '#/bongthom' || window.location.hash.toLowerCase() === '#bongthom') {
-      setCurrentView('bongthom');
-      setIsFreeRoomsOpen(false);
-      setIsBookingModalOpen(false);
-      setIsAuthModalOpen(false);
     } else if (cleanPath === '/release-notes' || cleanPath === '/changelog') {
       setCurrentView('release-notes');
       setIsFreeRoomsOpen(false);
@@ -272,7 +308,7 @@ export default function App() {
     }
   };
 
-  // Booked Make-up Sessions state (synced with Firestore + localStorage cache, auto-clearing expired)
+  // Booked Make-up Sessions state (synced with Firestore + localStorage cache, auto-clearing expired on Sunday)
   const [makeupBookings, setMakeupBookings] = useState<MakeupClassBooking[]>(() => {
     try {
       const stored = localStorage.getItem('itc_makeup_bookings');
@@ -286,11 +322,25 @@ export default function App() {
     }
   });
 
+  // Cancelled Class Sessions state (synced with Firestore + localStorage cache, auto-clearing expired on Sunday)
+  const [cancelledClasses, setCancelledClasses] = useState<CancelledClassSession[]>(() => {
+    try {
+      const stored = localStorage.getItem('itc_cancelled_classes');
+      if (stored) {
+        const parsed: CancelledClassSession[] = JSON.parse(stored);
+        return parsed.filter(c => !isCancellationExpired(c));
+      }
+      return [];
+    } catch {
+      return [];
+    }
+  });
+
   // Subscribe to real-time updates from Firebase Firestore across all devices
   useEffect(() => {
     testFirestoreConnection();
     const unsubscribeBookings = subscribeToMakeupBookings((remoteBookings) => {
-      // Filter out any expired bookings from state
+      // Filter out any expired bookings from state (resets every Sunday)
       const active = remoteBookings.filter(b => !isBookingExpired(b));
       const expired = remoteBookings.filter(b => isBookingExpired(b));
 
@@ -301,7 +351,7 @@ export default function App() {
         // ignore
       }
 
-      // Auto-delete expired bookings from Firestore so stale sessions never linger
+      // Auto-delete expired bookings from Firestore so stale sessions never linger after Sunday reset
       if (expired.length > 0) {
         for (const exp of expired) {
           deleteMakeupBooking(exp.id).catch(err => {
@@ -311,7 +361,27 @@ export default function App() {
       }
     });
 
-    // Background interval to auto-expire and delete sessions as their class hours conclude
+    const unsubscribeCancelled = subscribeToCancelledClasses((remoteCancelled) => {
+      const active = remoteCancelled.filter(c => !isCancellationExpired(c));
+      const expired = remoteCancelled.filter(c => isCancellationExpired(c));
+
+      setCancelledClasses(active);
+      try {
+        localStorage.setItem('itc_cancelled_classes', JSON.stringify(active));
+      } catch {
+        // ignore
+      }
+
+      if (expired.length > 0) {
+        for (const exp of expired) {
+          deleteCancelledClass(exp.id).catch(err => {
+            console.warn('Auto-deleted expired cancelled class locally, cloud sync deferred:', err);
+          });
+        }
+      }
+    });
+
+    // Background interval to check for Sunday weekly reset & expire old weeks
     const expiryInterval = setInterval(() => {
       setMakeupBookings(prev => {
         const expired = prev.filter(b => isBookingExpired(b));
@@ -329,10 +399,28 @@ export default function App() {
         }
         return active;
       });
+
+      setCancelledClasses(prev => {
+        const expired = prev.filter(c => isCancellationExpired(c));
+        if (expired.length === 0) return prev;
+
+        const active = prev.filter(c => !isCancellationExpired(c));
+        try {
+          localStorage.setItem('itc_cancelled_classes', JSON.stringify(active));
+        } catch {
+          // ignore
+        }
+
+        for (const exp of expired) {
+          deleteCancelledClass(exp.id).catch(() => {});
+        }
+        return active;
+      });
     }, 30000);
 
     return () => {
       unsubscribeBookings();
+      unsubscribeCancelled();
       clearInterval(expiryInterval);
     };
   }, []);
@@ -512,6 +600,42 @@ export default function App() {
       await deleteMakeupBooking(id);
     } catch (err) {
       console.warn('Booking removed locally, cloud sync deferred:', err);
+    }
+  };
+
+  const handleSaveCancelledClass = async (cancelled: CancelledClassSession) => {
+    setCancelledClasses(prev => {
+      const updated = [cancelled, ...prev.filter(c => c.id !== cancelled.id)];
+      try {
+        localStorage.setItem('itc_cancelled_classes', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    try {
+      await saveCancelledClass(cancelled, userProfile);
+    } catch (err) {
+      console.warn('Cancelled class saved in local cache, cloud sync deferred:', err);
+    }
+  };
+
+  const handleDeleteCancelledClass = async (id: string) => {
+    setCancelledClasses(prev => {
+      const updated = prev.filter(c => c.id !== id);
+      try {
+        localStorage.setItem('itc_cancelled_classes', JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
+    try {
+      await deleteCancelledClass(id);
+    } catch (err) {
+      console.warn('Cancelled class removed locally, cloud sync deferred:', err);
     }
   };
 
@@ -727,7 +851,7 @@ export default function App() {
   };
 
   // Nav Mode Selector with URL sync
-  const handleSelectNavMode = (mode: 'matrix' | 'lecturer' | 'room' | 'agenda' | 'clubs') => {
+  const handleSelectNavMode = (mode: NavMode) => {
     setActiveMode(mode);
     setCurrentView('schedule');
     if (mode === 'matrix') {
@@ -738,6 +862,8 @@ export default function App() {
       navigateTo('/lecturers');
     } else if (mode === 'agenda') {
       navigateTo(`/agenda?group=${selectedGroup}`);
+    } else if (mode === 'makeup') {
+      navigateTo('/makeup-classes');
     } else if (mode === 'clubs') {
       navigateTo('/clubs');
     }
@@ -806,6 +932,7 @@ export default function App() {
             navigateTo('/rooms');
           }}
           makeupBookings={makeupBookings}
+          cancelledClasses={cancelledClasses}
         />
 
         {/* Auth Modal with MetallicPaint */}
@@ -952,7 +1079,7 @@ export default function App() {
         <QuickStats />
 
         {/* Global Instant Search Bar */}
-        {activeMode !== 'clubs' && (
+        {activeMode !== 'clubs' && activeMode !== 'makeup' && (
           <div className="no-print mb-3">
             <div className="relative">
               <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -1002,6 +1129,7 @@ export default function App() {
               navigateTo('/free-rooms');
             }}
             makeupBookings={makeupBookings}
+            cancelledClasses={cancelledClasses}
           />
         )}
 
@@ -1027,6 +1155,7 @@ export default function App() {
               navigateTo('/free-rooms');
             }}
             makeupBookings={makeupBookings}
+            cancelledClasses={cancelledClasses}
           />
         )}
 
@@ -1037,6 +1166,26 @@ export default function App() {
             isStudentMode={isStudent}
             activeGroupId={selectedGroup}
             makeupBookings={makeupBookings}
+            cancelledClasses={cancelledClasses}
+          />
+        )}
+
+        {activeMode === 'makeup' && (
+          <MakeupClassesView
+            makeupBookings={makeupBookings}
+            cancelledClasses={cancelledClasses}
+            onDeleteMakeupBooking={handleDeleteMakeupBooking}
+            onSaveCancelledClass={handleSaveCancelledClass}
+            onDeleteCancelledClass={handleDeleteCancelledClass}
+            onOpenBookingModal={() => {
+              setIsBookingModalOpen(true);
+              navigateTo('/booking');
+            }}
+            currentUserProfile={userProfile}
+            isStudentMode={isStudent}
+            activeGroupId={selectedGroup}
+            searchQuery={searchQuery}
+            onSelectSession={setActiveModalSession}
           />
         )}
 
@@ -1051,7 +1200,7 @@ export default function App() {
         isOpen={isFreeRoomsOpen}
         onClose={() => {
           setIsFreeRoomsOpen(false);
-          navigateTo(activeMode === 'room' ? '/rooms' : '/schedule');
+          navigateTo(activeMode === 'room' ? '/rooms' : activeMode === 'makeup' ? '/makeup-classes' : '/schedule');
         }}
         onSelectRoom={(roomName) => {
           setSelectedRoom(roomName);
@@ -1061,6 +1210,7 @@ export default function App() {
           }
         }}
         makeupBookings={makeupBookings}
+        cancelledClasses={cancelledClasses}
       />
 
       {/* Make-up Class Room Booking Modal */}
@@ -1068,12 +1218,13 @@ export default function App() {
         isOpen={isBookingModalOpen}
         onClose={() => {
           setIsBookingModalOpen(false);
-          navigateTo(activeMode === 'room' ? '/rooms' : '/schedule');
+          navigateTo(activeMode === 'room' ? '/rooms' : activeMode === 'makeup' ? '/makeup-classes' : '/schedule');
         }}
         onSaveBooking={handleSaveMakeupBooking}
         onDeleteBooking={handleDeleteMakeupBooking}
         activeMonitorGen={activeMonitorGen}
         existingBookings={makeupBookings}
+        cancelledClasses={cancelledClasses}
         currentUserProfile={userProfile}
       />
 
@@ -1206,6 +1357,11 @@ export default function App() {
             navigateTo('/rooms');
           }
         }}
+        currentUserProfile={userProfile}
+        isStudentMode={isStudent}
+        onDeleteMakeupBooking={handleDeleteMakeupBooking}
+        onSaveCancelledClass={handleSaveCancelledClass}
+        onDeleteCancelledClass={handleDeleteCancelledClass}
       />
 
       {/* Auth Modal with MetallicPaint in Schedule view */}

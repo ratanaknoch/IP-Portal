@@ -18,7 +18,15 @@ service cloud.firestore {
       allow create: if isValidId(bookingId);
       // Cancellation / deletion
       allow delete: if isValidId(bookingId);
-      allow update: if false;
+      allow update: if isValidId(bookingId);
+    }
+
+    // Cancelled classes for current week
+    match /cancelledClasses/{cancelId} {
+      allow read: if true;
+      allow create: if isValidId(cancelId);
+      allow delete: if isValidId(cancelId);
+      allow update: if isValidId(cancelId);
     }
 
     // User profiles & roles

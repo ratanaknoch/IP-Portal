@@ -3,7 +3,6 @@ import {
   X, 
   Calendar as CalendarIcon, 
   Clock, 
-  MapPin, 
   Check, 
   Plus, 
   AlertCircle, 
@@ -15,16 +14,19 @@ import {
   AlertTriangle,
   Building2,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Lock
 } from 'lucide-react';
-import { SCHEDULE_DATA, BOOKABLE_ROOMS, ALL_SESSIONS, parseSlotMinutes } from '../data/scheduleData';
+import { SCHEDULE_DATA, BOOKABLE_ROOMS, ALL_SESSIONS, parseSlotMinutes, SessionType } from '../data/scheduleData';
 import { UserProfile } from '../lib/firebase';
 
 export type ScheduleDay = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
+export type MakeupSessionType = 'Lecture' | 'Tutorial' | 'Practical';
 
 export interface MakeupClassBooking {
   id: string;
   course: string;
+  sessionType?: MakeupSessionType;
   room: string;
   generation?: string;
   groupId: string;
@@ -33,7 +35,27 @@ export interface MakeupClassBooking {
   time: string;
   timeSlots?: string[];
   bookedBy: string;
+  bookedByUid?: string;
+  bookedByEmail?: string;
   note?: string;
+  createdAt: string;
+}
+
+export interface CancelledClassSession {
+  id: string;
+  groupId: string;
+  cohort: string;
+  day: ScheduleDay;
+  date: string; // YYYY-MM-DD in the current week
+  time: string;
+  course: string;
+  type: SessionType;
+  lecturer: string;
+  room: string;
+  cancelledBy: string;
+  cancelledByUid?: string;
+  cancelledByEmail?: string;
+  reason?: string;
   createdAt: string;
 }
 
@@ -44,79 +66,173 @@ interface MakeupClassBookingModalProps {
   onDeleteBooking?: (id: string) => void;
   activeMonitorGen?: string;
   existingBookings?: MakeupClassBooking[];
+  cancelledClasses?: CancelledClassSession[];
   currentUserProfile?: UserProfile | null;
 }
 
-// Helper: Check if a make-up class booking has expired according to Cambodia Time (UTC+7)
+function formatYMD(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Computes the active Monday–Saturday academic week in Cambodia Time (UTC+7).
+ * Every Sunday (day 0), the previous week's make-up classes and cancelled classes
+ * expire and reset to the normal schedule for the new week starting Monday.
+ */
+export function getActiveWeekBounds(): {
+  weekStartMonday: string;
+  weekEndSaturday: string;
+  nextSundayReset: string;
+  rawToday: string;
+  isSundayToday: boolean;
+  dayDatesMap: Record<ScheduleDay, string>;
+  formattedWeekRange: string;
+} {
+  const now = new Date();
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const kh = new Date(utc + 3600000 * 7); // UTC+7 Phnom Penh
+
+  const rawToday = formatYMD(kh);
+  const dayOfWeek = kh.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const isSundayToday = dayOfWeek === 0;
+
+  const mondayDate = new Date(kh.getFullYear(), kh.getMonth(), kh.getDate());
+  if (isSundayToday) {
+    // On Sunday, the finished week resets and the active schedule window is the upcoming Mon–Sat week
+    mondayDate.setDate(mondayDate.getDate() + 1);
+  } else {
+    mondayDate.setDate(mondayDate.getDate() - (dayOfWeek - 1));
+  }
+
+  const saturdayDate = new Date(mondayDate);
+  saturdayDate.setDate(mondayDate.getDate() + 5);
+
+  const sundayResetDate = new Date(mondayDate);
+  sundayResetDate.setDate(mondayDate.getDate() + 6);
+
+  const dayNames: ScheduleDay[] = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayDatesMap = {} as Record<ScheduleDay, string>;
+  dayNames.forEach((dName, idx) => {
+    const dObj = new Date(mondayDate);
+    dObj.setDate(mondayDate.getDate() + idx);
+    dayDatesMap[dName] = formatYMD(dObj);
+  });
+
+  const fmtOptions: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  const formattedWeekRange = `${mondayDate.toLocaleDateString('en-US', fmtOptions)} – ${saturdayDate.toLocaleDateString('en-US', { ...fmtOptions, year: 'numeric' })}`;
+
+  return {
+    weekStartMonday: formatYMD(mondayDate),
+    weekEndSaturday: formatYMD(saturdayDate),
+    nextSundayReset: formatYMD(sundayResetDate),
+    rawToday,
+    isSundayToday,
+    dayDatesMap,
+    formattedWeekRange
+  };
+}
+
+/**
+ * Make-up bookings remain visible on the calendar throughout the entire current week
+ * and only expire / reset to the normal schedule on Sunday.
+ */
 export function isBookingExpired(booking: MakeupClassBooking): boolean {
   if (!booking || !booking.date) return false;
+  const { weekStartMonday } = getActiveWeekBounds();
+  return booking.date < weekStartMonday;
+}
 
-  const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const khDate = new Date(utc + (3600000 * 7)); // UTC+7 Phnom Penh
+export function isBookingInCurrentWeek(booking: MakeupClassBooking): boolean {
+  if (!booking || !booking.date) return false;
+  const { weekStartMonday, weekEndSaturday } = getActiveWeekBounds();
+  return booking.date >= weekStartMonday && booking.date <= weekEndSaturday;
+}
 
-  const khY = khDate.getFullYear();
-  const khM = String(khDate.getMonth() + 1).padStart(2, '0');
-  const khD = String(khDate.getDate()).padStart(2, '0');
-  const todayKhStr = `${khY}-${khM}-${khD}`;
+/**
+ * Cancelled classes remain visible on the calendar throughout the entire current week
+ * and automatically expire / reset to the normal schedule on Sunday.
+ */
+export function isCancellationExpired(item: CancelledClassSession): boolean {
+  if (!item || !item.date) return false;
+  const { weekStartMonday } = getActiveWeekBounds();
+  return item.date < weekStartMonday;
+}
 
-  // If the booking date is strictly in the past, it is expired
-  if (booking.date < todayKhStr) {
-    return true;
+export function isCancellationInCurrentWeek(item: CancelledClassSession): boolean {
+  if (!item || !item.date) return false;
+  const { weekStartMonday, weekEndSaturday } = getActiveWeekBounds();
+  return item.date >= weekStartMonday && item.date <= weekEndSaturday;
+}
+
+/**
+ * Permission check: Only the Class Monitor who created the make-up booking or an Admin can delete it.
+ */
+export function canDeleteMakeupBooking(
+  booking: MakeupClassBooking,
+  userProfile?: UserProfile | null
+): boolean {
+  if (!userProfile) return false;
+  if (userProfile.role === 'admin') return true;
+  if (userProfile.role !== 'monitor') return false;
+
+  if (booking.bookedByUid && userProfile.uid) {
+    return booking.bookedByUid === userProfile.uid;
+  }
+  if (booking.bookedByEmail && userProfile.email) {
+    return booking.bookedByEmail.toLowerCase() === userProfile.email.toLowerCase();
   }
 
-  // If the booking date is in the future, it has NOT expired
-  if (booking.date > todayKhStr) {
-    return false;
+  // Fallback for legacy bookings without UID: match displayName or email prefix
+  const creator = (booking.bookedBy || '').trim().toLowerCase();
+  const userDisplay = (userProfile.displayName || '').trim().toLowerCase();
+  const userEmailPrefix = (userProfile.email?.split('@')[0] || '').trim().toLowerCase();
+
+  return Boolean(creator && (creator === userDisplay || creator === userEmailPrefix));
+}
+
+/**
+ * Permission check: Only the Class Monitor who marked a class cancelled or an Admin can restore/delete it.
+ */
+export function canManageCancelledClass(
+  item: CancelledClassSession,
+  userProfile?: UserProfile | null
+): boolean {
+  if (!userProfile) return false;
+  if (userProfile.role === 'admin') return true;
+  if (userProfile.role !== 'monitor') return false;
+
+  if (item.cancelledByUid && userProfile.uid) {
+    return item.cancelledByUid === userProfile.uid;
+  }
+  if (item.cancelledByEmail && userProfile.email) {
+    return item.cancelledByEmail.toLowerCase() === userProfile.email.toLowerCase();
   }
 
-  // If the booking is TODAY: check if all selected time slots have finished
-  const currentTotalMinutes = khDate.getHours() * 60 + khDate.getMinutes();
+  const creator = (item.cancelledBy || '').trim().toLowerCase();
+  const userDisplay = (userProfile.displayName || '').trim().toLowerCase();
+  const userEmailPrefix = (userProfile.email?.split('@')[0] || '').trim().toLowerCase();
 
-  const slots = (booking.timeSlots && booking.timeSlots.length > 0)
-    ? booking.timeSlots
-    : (booking.time ? booking.time.split(', ') : []);
-
-  let maxEndMinutes = 0;
-  for (const slot of slots) {
-    const parts = slot.split('-').map(s => s.trim());
-    if (parts.length >= 2) {
-      const [h, m] = parts[1].split('h').map(Number);
-      const endMins = (h || 0) * 60 + (m || 0);
-      if (endMins > maxEndMinutes) {
-        maxEndMinutes = endMins;
-      }
-    }
-  }
-
-  // If current time passed the end of the class slot, it has expired
-  return maxEndMinutes > 0 && currentTotalMinutes >= maxEndMinutes;
+  return Boolean(creator && (creator === userDisplay || creator === userEmailPrefix));
 }
 
 // Helper: Calculate the earliest bookable date in Cambodia (UTC+7)
-// If Sunday -> advances to Monday
-// If today's last slot (16h10) has already started/passed -> advances to tomorrow (or Monday if tomorrow is Sunday)
 export function getEarliestBookableDate(): {
   earliestDate: string;
   isTodayAllSlotsPassed: boolean;
   rawToday: string;
 } {
   const now = new Date();
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  const kh = new Date(utc + (3600000 * 7));
+  const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+  const kh = new Date(utc + 3600000 * 7);
 
-  const rawY = kh.getFullYear();
-  const rawM = String(kh.getMonth() + 1).padStart(2, '0');
-  const rawD = String(kh.getDate()).padStart(2, '0');
-  const rawToday = `${rawY}-${rawM}-${rawD}`;
-
+  const rawToday = formatYMD(kh);
   const totalMinutes = kh.getHours() * 60 + kh.getMinutes();
-  // 16h10 is the start of the final class slot. If past 16:10, today's schedule has ended.
-  const isTodayAllSlotsPassed = totalMinutes >= (16 * 60 + 10);
+  const isTodayAllSlotsPassed = totalMinutes >= 16 * 60 + 10;
 
-  let target = new Date(kh);
-
-  // If today is Sunday (day 0), advance to Monday (+1 day)
+  const target = new Date(kh);
   if (target.getDay() === 0) {
     target.setDate(target.getDate() + 1);
   } else if (isTodayAllSlotsPassed) {
@@ -126,12 +242,8 @@ export function getEarliestBookableDate(): {
     }
   }
 
-  const y = target.getFullYear();
-  const m = String(target.getMonth() + 1).padStart(2, '0');
-  const d = String(target.getDate()).padStart(2, '0');
-
   return {
-    earliestDate: `${y}-${m}-${d}`,
+    earliestDate: formatYMD(target),
     isTodayAllSlotsPassed,
     rawToday
   };
@@ -143,12 +255,11 @@ export function MakeupClassBookingModal({
   onSaveBooking,
   onDeleteBooking,
   existingBookings = [],
+  cancelledClasses = [],
   currentUserProfile
 }: MakeupClassBookingModalProps) {
-  // Tabs: 'create' reservation vs 'manage' list
   const [activeTab, setActiveTab] = useState<'create' | 'manage'>('create');
 
-  // Compute earliest bookable date
   const { earliestDate, isTodayAllSlotsPassed, rawToday } = useMemo(() => getEarliestBookableDate(), [isOpen]);
 
   // Form State
@@ -156,6 +267,7 @@ export function MakeupClassBookingModal({
   const [selectedSlots, setSelectedSlots] = useState<string[]>([]);
   const [room, setRoom] = useState<string>('');
   const [course, setCourse] = useState<string>('');
+  const [sessionType, setSessionType] = useState<MakeupSessionType>('Lecture');
   const [groupId, setGroupId] = useState<string>(
     currentUserProfile?.groupId && currentUserProfile.groupId !== 'Alumni' && currentUserProfile.groupId !== 'I5'
       ? currentUserProfile.groupId
@@ -163,6 +275,9 @@ export function MakeupClassBookingModal({
   );
   const [note, setNote] = useState<string>('');
   const [error, setError] = useState<string>('');
+
+  // Delete confirmation state for Active Bookings tab
+  const [bookingPendingDelete, setBookingPendingDelete] = useState<MakeupClassBooking | null>(null);
 
   // Building filter for available rooms: Building A vs Building J
   const [buildingFilter, setBuildingFilter] = useState<'ALL' | 'A' | 'J'>('ALL');
@@ -177,12 +292,11 @@ export function MakeupClassBookingModal({
   // Calculate current Cambodia minutes to disable passed slots if selectedDate === rawToday
   const currentKhMinutes = useMemo(() => {
     const now = new Date();
-    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const kh = new Date(utc + (3600000 * 7));
+    const utc = now.getTime() + now.getTimezoneOffset() * 60000;
+    const kh = new Date(utc + 3600000 * 7);
     return kh.getHours() * 60 + kh.getMinutes();
   }, [isOpen, selectedDate]);
 
-  // Check if a time slot has already passed when viewing today
   const isSlotPassed = (slot: string) => {
     if (selectedDate !== rawToday) return false;
     const [startMin] = parseSlotMinutes(slot);
@@ -194,6 +308,10 @@ export function MakeupClassBookingModal({
     return existingBookings.filter(b => !isBookingExpired(b));
   }, [existingBookings]);
 
+  const activeCancelledClasses = useMemo(() => {
+    return cancelledClasses.filter(c => !isCancellationExpired(c));
+  }, [cancelledClasses]);
+
   // Reset form whenever modal opens
   useEffect(() => {
     if (isOpen) {
@@ -201,8 +319,10 @@ export function MakeupClassBookingModal({
       setSelectedSlots([]);
       setRoom('');
       setCourse('');
+      setSessionType('Lecture');
       setNote('');
       setError('');
+      setBookingPendingDelete(null);
       setBuildingFilter('ALL');
       setShowOccupiedList(false);
       const [y, m] = earliestDate.split('-').map(Number);
@@ -214,19 +334,17 @@ export function MakeupClassBookingModal({
     }
   }, [isOpen, earliestDate, currentUserProfile]);
 
-  // Deselect any slots that have passed if viewing today
   useEffect(() => {
     if (selectedDate === rawToday && selectedSlots.length > 0) {
       setSelectedSlots(prev => prev.filter(slot => !isSlotPassed(slot)));
     }
   }, [selectedDate, rawToday, currentKhMinutes]);
 
-  // Derive day name from selectedDate
   const derivedDay = useMemo<ScheduleDay>(() => {
     if (!selectedDate) return 'Monday';
     const [y, m, d] = selectedDate.split('-').map(Number);
     const target = new Date(y, m - 1, d);
-    const dayIndex = target.getDay(); // 0 is Sun, 1 is Mon ... 6 is Sat
+    const dayIndex = target.getDay();
     const map: Record<number, ScheduleDay> = {
       1: 'Monday',
       2: 'Tuesday',
@@ -238,7 +356,6 @@ export function MakeupClassBookingModal({
     return map[dayIndex] || 'Monday';
   }, [selectedDate]);
 
-  // Formatted date string for UI display
   const formattedSelectedDate = useMemo(() => {
     if (!selectedDate) return '';
     try {
@@ -255,7 +372,6 @@ export function MakeupClassBookingModal({
     }
   }, [selectedDate]);
 
-  // Check if calendar view is at or before current month
   const isPastMonth = useMemo(() => {
     const [currentY, currentM] = rawToday.split('-').map(Number);
     const viewY = calendarViewDate.getFullYear();
@@ -263,7 +379,6 @@ export function MakeupClassBookingModal({
     return viewY < currentY || (viewY === currentY && viewM <= currentM);
   }, [calendarViewDate, rawToday]);
 
-  // Toggle time slot selection
   const handleToggleSlot = (slot: string) => {
     if (isSlotPassed(slot)) return;
     setError('');
@@ -281,6 +396,7 @@ export function MakeupClassBookingModal({
   };
 
   // DYNAMIC ROOM AVAILABILITY: Evaluates all Building A and Building J rooms for selectedDate + selectedSlots
+  // Accounts for classes marked as CANCELLED on selectedDate so freed rooms can be booked!
   const roomAvailability = useMemo(() => {
     if (selectedSlots.length === 0 || !selectedDate) {
       return { availableRooms: [], occupiedRooms: [] };
@@ -293,14 +409,26 @@ export function MakeupClassBookingModal({
       let isBusy = false;
       let busyReason = '';
 
-      // Check against regular class sessions on this day of week
       for (const slot of selectedSlots) {
-        const regularClass = ALL_SESSIONS.find(
+        // Check regular class sessions on this day of week that are NOT cancelled for this date
+        const regularClassesInRoom = ALL_SESSIONS.filter(
           s => s.room.trim() === r.trim() && s.day === derivedDay && s.time === slot
         );
-        if (regularClass) {
+
+        const activeRegularClass = regularClassesInRoom.find(reg => {
+          const isCancelled = activeCancelledClasses.some(
+            c =>
+              c.groupId === reg.groupId &&
+              c.day === reg.day &&
+              c.time === reg.time &&
+              c.date === selectedDate
+          );
+          return !isCancelled;
+        });
+
+        if (activeRegularClass) {
           isBusy = true;
-          busyReason = `Occupied by regular class "${regularClass.course}" (${regularClass.groupId || 'Class'}) at ${slot}`;
+          busyReason = `Occupied by regular class "${activeRegularClass.course}" (${activeRegularClass.groupId || 'Class'}) at ${slot}`;
           break;
         }
 
@@ -328,16 +456,14 @@ export function MakeupClassBookingModal({
     });
 
     return { availableRooms: available, occupiedRooms: occupied };
-  }, [selectedSlots, selectedDate, derivedDay, activeExistingBookings]);
+  }, [selectedSlots, selectedDate, derivedDay, activeExistingBookings, activeCancelledClasses]);
 
-  // If the previously selected room becomes occupied after changing slots/date, deselect it
   useEffect(() => {
     if (room && selectedSlots.length > 0 && !roomAvailability.availableRooms.includes(room)) {
       setRoom('');
     }
   }, [roomAvailability.availableRooms, room, selectedSlots.length]);
 
-  // Filter available rooms by building (Building A vs Building J)
   const filteredAvailableRooms = useMemo(() => {
     if (buildingFilter === 'ALL') return roomAvailability.availableRooms;
     if (buildingFilter === 'A') return roomAvailability.availableRooms.filter(r => r.includes('A-'));
@@ -347,14 +473,12 @@ export function MakeupClassBookingModal({
 
   if (!isOpen) return null;
 
-  // Calendar month days calculation
   const calendarDays = () => {
     const year = calendarViewDate.getFullYear();
     const month = calendarViewDate.getMonth();
-    const firstDayIndex = new Date(year, month, 1).getDay(); // 0 is Sun
+    const firstDayIndex = new Date(year, month, 1).getDay();
     const totalDaysInMonth = new Date(year, month + 1, 0).getDate();
 
-    // Week starts on Monday (index 0) to Sunday (index 6)
     const startOffset = (firstDayIndex + 6) % 7;
 
     const days: Array<{ 
@@ -366,7 +490,6 @@ export function MakeupClassBookingModal({
       isToday: boolean; 
     }> = [];
 
-    // Empty lead slots
     for (let i = 0; i < startOffset; i++) {
       days.push({ 
         dayNumber: 0, 
@@ -378,14 +501,12 @@ export function MakeupClassBookingModal({
       });
     }
 
-    // Days in current month
     for (let d = 1; d <= totalDaysInMonth; d++) {
       const monthStr = String(month + 1).padStart(2, '0');
       const dayStr = String(d).padStart(2, '0');
       const dateString = `${year}-${monthStr}-${dayStr}`;
       const dayOfWeek = new Date(year, month, d).getDay();
       const isSunday = dayOfWeek === 0;
-      
       const isDisabled = dateString < earliestDate || isSunday;
 
       days.push({
@@ -453,16 +574,22 @@ export function MakeupClassBookingModal({
       ? currentUserProfile.email.split('@')[0]
       : 'Class Monitor';
 
+    const matchedGroup = SCHEDULE_DATA.groups.find(g => g.id === groupId);
+
     const newBooking: MakeupClassBooking = {
       id: `makeup-${Date.now()}`,
       course: course.trim(),
+      sessionType,
       room: room.trim(),
+      generation: matchedGroup?.cohort || groupId.split('-')[0] || 'I2',
       groupId,
       date: selectedDate,
       day: derivedDay,
       time: selectedSlots.join(', '),
       timeSlots: selectedSlots,
       bookedBy: monitorName,
+      bookedByUid: currentUserProfile?.uid || '',
+      bookedByEmail: currentUserProfile?.email || '',
       note: note.trim() || '',
       createdAt: new Date().toISOString()
     };
@@ -493,7 +620,7 @@ export function MakeupClassBookingModal({
                 )}
               </h3>
               <p className="text-[11px] text-slate-400">
-                Book Building A & Building J classrooms · Auto-clears after class
+                Book Building A & Building J classrooms · Visible on calendar all week, resets every Sunday
               </p>
             </div>
           </div>
@@ -622,7 +749,7 @@ export function MakeupClassBookingModal({
                       title={
                         isDisabled
                           ? cell.isSunday 
-                            ? 'Sunday closed' 
+                            ? 'Sunday closed (Weekly schedule reset day)' 
                             : 'Date not available for booking'
                           : cell.dateString
                       }
@@ -686,7 +813,6 @@ export function MakeupClassBookingModal({
 
               {/* Slots Grid */}
               <div className="space-y-2 pt-1">
-                {/* Morning Slots */}
                 <div>
                   <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">
                     Morning (7:00 – 11:05)
@@ -726,7 +852,6 @@ export function MakeupClassBookingModal({
                   </div>
                 </div>
 
-                {/* Afternoon Slots */}
                 <div>
                   <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-1">
                     Afternoon (13:00 – 17:05)
@@ -794,7 +919,6 @@ export function MakeupClassBookingModal({
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {/* Building Filter Tabs (Building A vs Building J) */}
                   <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px]">
                     <span className="text-slate-400 font-medium mr-1 shrink-0">Filter Building:</span>
                     <button
@@ -832,7 +956,6 @@ export function MakeupClassBookingModal({
                     </button>
                   </div>
 
-                  {/* Building J Unconfirmed Availability Note */}
                   <div className="p-2 rounded-lg bg-amber-950/25 border border-amber-800/50 text-amber-300 text-[11px] flex items-start gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                     <span>
@@ -840,7 +963,6 @@ export function MakeupClassBookingModal({
                     </span>
                   </div>
 
-                  {/* Room Selection Grid */}
                   {filteredAvailableRooms.length === 0 ? (
                     <div className="p-3 rounded-lg bg-amber-950/40 border border-amber-800 text-amber-200 text-xs">
                       No classrooms in this building are free during the selected slot. Try selecting a different building or time slot.
@@ -887,7 +1009,6 @@ export function MakeupClassBookingModal({
                     </div>
                   )}
 
-                  {/* Selected Room Feedback (Simple & Concise) */}
                   {room && (
                     <div className="p-2 rounded-lg bg-emerald-950/60 border border-emerald-800 text-emerald-200 flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
@@ -902,7 +1023,6 @@ export function MakeupClassBookingModal({
                     </div>
                   )}
 
-                  {/* Toggle: Occupied Classrooms Explanation */}
                   {roomAvailability.occupiedRooms.length > 0 && (
                     <div className="pt-1">
                       <button
@@ -935,7 +1055,7 @@ export function MakeupClassBookingModal({
               )}
             </div>
 
-            {/* STEP 4: Class Details */}
+            {/* STEP 4: Class Details (Course, Class Option/Type Dropdown, Cohort/Group, Note) */}
             <div className="space-y-3 bg-slate-950/70 border border-slate-800 rounded-lg p-3">
               <label className="text-slate-200 font-bold flex items-center gap-2">
                 <span className="w-5 h-5 rounded-full bg-sky-950 border border-sky-800 text-sky-400 text-[11px] flex items-center justify-center font-mono">
@@ -944,7 +1064,7 @@ export function MakeupClassBookingModal({
                 <span>Class / Subject Details *</span>
               </label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="sm:col-span-2">
                   <label className="block text-slate-300 font-semibold mb-1">
                     Course / Subject Name *
@@ -960,6 +1080,21 @@ export function MakeupClassBookingModal({
                     className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:border-sky-400 text-xs"
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-semibold mb-1">
+                    Make-up Option *
+                  </label>
+                  <select
+                    value={sessionType}
+                    onChange={(e) => setSessionType(e.target.value as MakeupSessionType)}
+                    className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-md text-white font-semibold focus:outline-hidden focus:border-sky-400 text-xs cursor-pointer"
+                  >
+                    <option value="Lecture">Lecture</option>
+                    <option value="Tutorial">Tutorial</option>
+                    <option value="Practical">Practical</option>
+                  </select>
                 </div>
 
                 <div>
@@ -987,7 +1122,7 @@ export function MakeupClassBookingModal({
                   type="text"
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  placeholder="e.g. Replaces cancelled lecture from Oct 20"
+                  placeholder="e.g. Replaces cancelled lecture · Instructor: Mr. PICH Reatrey"
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:border-sky-400 text-xs"
                 />
               </div>
@@ -1009,7 +1144,7 @@ export function MakeupClassBookingModal({
               >
                 <Check className="w-4 h-4" />
                 <span>
-                  {room ? `Confirm Booking: ${room} (${selectedSlots.length} slot${selectedSlots.length > 1 ? 's' : ''})` : 'Select a Classroom Above'}
+                  {room ? `Confirm ${sessionType}: ${room} (${selectedSlots.length} slot${selectedSlots.length > 1 ? 's' : ''})` : 'Select a Classroom Above'}
                 </span>
               </button>
             </div>
@@ -1020,9 +1155,9 @@ export function MakeupClassBookingModal({
             {activeExistingBookings.length === 0 ? (
               <div className="text-center py-8 text-slate-500 space-y-2">
                 <CalendarIcon className="w-8 h-8 mx-auto text-slate-600" />
-                <p className="text-xs">No active make-up bookings found.</p>
+                <p className="text-xs">No active make-up bookings found for this week.</p>
                 <p className="text-[11px] text-slate-600">
-                  (Expired sessions are automatically cleared from the schedule and database)
+                  (Make-up bookings remain on the calendar all week and reset automatically every Sunday)
                 </p>
               </div>
             ) : (
@@ -1030,67 +1165,112 @@ export function MakeupClassBookingModal({
                 <div className="flex items-center justify-between text-slate-400 text-xs font-semibold">
                   <span>Active Reservations ({activeExistingBookings.length}):</span>
                   <span className="text-[11px] text-slate-500 font-normal">
-                    Auto-expires once class period concludes
+                    Resets to normal schedule every Sunday
                   </span>
                 </div>
 
-                {activeExistingBookings.map((b) => (
-                  <div 
-                    key={b.id} 
-                    className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-slate-700 flex items-start justify-between gap-3 transition-colors"
-                  >
-                    <div className="space-y-1.5 flex-1">
-                      {/* Course & Group */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-bold text-white text-sm">{b.course}</span>
-                        <span className="px-2 py-0.5 rounded text-[11px] bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono font-bold">
-                          Group: {b.groupId}
-                        </span>
-                        <span className="px-2 py-0.5 rounded text-[10px] bg-sky-950 text-sky-400 border border-sky-800 font-medium">
-                          Active
-                        </span>
+                {activeExistingBookings.map((b) => {
+                  const canDelete = canDeleteMakeupBooking(b, currentUserProfile);
+                  const isConfirmingThis = bookingPendingDelete?.id === b.id;
+
+                  return (
+                    <div 
+                      key={b.id} 
+                      className="p-3.5 rounded-lg bg-slate-950 border border-slate-800 hover:border-slate-700 space-y-2.5 transition-colors"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1.5 flex-1">
+                          {/* Course, Session Type & Group */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-white text-sm">{b.course}</span>
+                            <span className="px-2 py-0.5 rounded text-[10px] bg-indigo-950 text-indigo-300 border border-indigo-800 font-semibold uppercase tracking-wider">
+                              {b.sessionType || 'Lecture'}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[11px] bg-emerald-950 text-emerald-400 border border-emerald-800 font-mono font-bold">
+                              {b.groupId}
+                            </span>
+                          </div>
+
+                          {/* Explicit Details: Booked by, Date, Room, Time */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-slate-300 text-xs pt-0.5">
+                            <div>
+                              <span className="text-slate-400">Booked by: </span>
+                              <span className="font-semibold text-white">{b.bookedBy}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">Date: </span>
+                              <span className="font-mono font-semibold text-sky-300">{b.date} ({b.day})</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">Room: </span>
+                              <span className="font-mono font-semibold text-amber-300">{b.room}</span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400">Time: </span>
+                              <span className="font-mono font-semibold text-slate-200">{b.time}</span>
+                            </div>
+                          </div>
+
+                          {b.note && (
+                            <div className="text-[11px] text-slate-400 pt-0.5">
+                              <span className="text-slate-400">Note: </span>
+                              <span className="italic text-slate-300">{b.note}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {onDeleteBooking && canDelete ? (
+                          <button
+                            type="button"
+                            onClick={() => setBookingPendingDelete(isConfirmingThis ? null : b)}
+                            className="p-2 text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer shrink-0"
+                            title="Delete this make-up session"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        ) : (
+                          <span
+                            className="flex items-center gap-1 text-[10px] text-slate-500 px-2 py-1 rounded bg-slate-900 border border-slate-800 shrink-0"
+                            title="Only the Class Monitor who created this booking or Admin can delete it"
+                          >
+                            <Lock className="w-3 h-3" />
+                            <span>Protected</span>
+                          </span>
+                        )}
                       </div>
 
-                      {/* Explicit Details: Booked by, Date, Room, Time */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-slate-300 text-xs pt-0.5">
-                        <div>
-                          <span className="text-slate-400">Booked by: </span>
-                          <span className="font-semibold text-white">{b.bookedBy}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Date: </span>
-                          <span className="font-mono font-semibold text-sky-300">{b.date} ({b.day})</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Room: </span>
-                          <span className="font-mono font-semibold text-amber-300">{b.room}</span>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Time: </span>
-                          <span className="font-mono font-semibold text-slate-200">{b.time}</span>
-                        </div>
-                      </div>
-
-                      {b.note && (
-                        <div className="text-[11px] text-slate-400 pt-0.5">
-                          <span className="text-slate-400">Note: </span>
-                          <span className="italic text-slate-300">{b.note}</span>
+                      {/* Delete Confirmation Prompt */}
+                      {isConfirmingThis && onDeleteBooking && (
+                        <div className="p-3 rounded-lg bg-rose-950/50 border border-rose-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+                          <div className="text-rose-200">
+                            <span className="font-bold text-white block">Confirm Delete Make-up Class?</span>
+                            <span>Remove {b.course} ({b.groupId}) in {b.room} on {b.date}?</span>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => setBookingPendingDelete(null)}
+                              className="px-3 py-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                onDeleteBooking(b.id);
+                                setBookingPendingDelete(null);
+                              }}
+                              className="px-3 py-1.5 rounded bg-rose-600 hover:bg-rose-500 text-white font-bold cursor-pointer flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Confirm Delete</span>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
-
-                    {onDeleteBooking && (
-                      <button
-                        type="button"
-                        onClick={() => onDeleteBooking(b.id)}
-                        className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 rounded-md transition-colors cursor-pointer shrink-0"
-                        title="Cancel this make-up session"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

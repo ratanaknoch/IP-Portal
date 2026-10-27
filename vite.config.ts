@@ -4,8 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-// Generates static route entry points (e.g. dist/bongthom/index.html and dist/404.html)
-// so direct links like https://ip-portal.onrender.com/bongthom work out-of-the-box on Render Static Sites.
+// Generates dist/404.html fallback alongside Render's /* -> /index.html Rewrite rule
 function spaStaticRoutesPlugin() {
   return {
     name: 'spa-static-routes',
@@ -13,38 +12,6 @@ function spaStaticRoutesPlugin() {
       const distDir = path.resolve(import.meta.dirname, 'dist');
       const indexHtml = path.join(distDir, 'index.html');
       if (!fs.existsSync(indexHtml)) return;
-
-      const routes = [
-        'bongthom',
-        'login',
-        'auth',
-        'schedule',
-        'rooms',
-        'room',
-        'lecturers',
-        'lecturer',
-        'agenda',
-        'daily',
-        'clubs',
-        'club',
-        'free-rooms',
-        'booking',
-        'makeup',
-        'release-notes',
-        'changelog',
-        'privacy',
-        'privacy-policy',
-        'terms',
-        'terms-of-service',
-        'tos',
-      ];
-
-      for (const route of routes) {
-        const routeDir = path.join(distDir, route);
-        fs.mkdirSync(routeDir, {recursive: true});
-        fs.copyFileSync(indexHtml, path.join(routeDir, 'index.html'));
-      }
-
       fs.copyFileSync(indexHtml, path.join(distDir, '404.html'));
     },
   };

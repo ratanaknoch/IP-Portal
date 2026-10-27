@@ -7,21 +7,22 @@ import {
   ArrowLeft,
   Plus,
   ShieldCheck,
-  RefreshCw,
   LogOut,
   ChevronDown,
   Bell,
   LogIn,
-  Sparkles,
   GraduationCap,
-  Award
+  Award,
+  CalendarPlus
 } from 'lucide-react';
 import { GroupSchedule } from '../data/scheduleData';
 import { UserProfile } from '../lib/firebase';
 
+export type NavMode = 'matrix' | 'lecturer' | 'room' | 'agenda' | 'makeup' | 'clubs';
+
 interface HeaderProps {
-  activeMode: 'matrix' | 'lecturer' | 'room' | 'agenda' | 'clubs';
-  onSelectMode: (mode: 'matrix' | 'lecturer' | 'room' | 'agenda' | 'clubs') => void;
+  activeMode: NavMode;
+  onSelectMode: (mode: NavMode) => void;
   onReturnHome?: () => void;
   onOpenFreeRooms?: () => void;
   onOpenBookingModal?: () => void;
@@ -31,6 +32,7 @@ interface HeaderProps {
   portalRole?: 'student' | 'class-monitor';
   userProfile?: UserProfile | null;
   unreadNotificationsCount?: number;
+  activeMakeupCount?: number;
   onOpenInbox?: () => void;
   onOpenAuthModal?: () => void;
   onOpenAdminDashboard?: () => void;
@@ -47,6 +49,7 @@ export function Header({
   portalRole = 'student',
   userProfile,
   unreadNotificationsCount = 0,
+  activeMakeupCount = 0,
   onOpenInbox,
   onOpenAuthModal,
   onOpenAdminDashboard,
@@ -74,27 +77,27 @@ export function Header({
   return (
     <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md transition-colors">
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
-        <div className="flex items-center justify-between h-14 gap-2 sm:gap-4">
+        <div className="flex items-center justify-between h-14 gap-2 sm:gap-3">
           
           {/* Left: Brand & Portal Back */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 shrink-0">
             {onReturnHome && (
               <button
                 onClick={onReturnHome}
                 title="Return to Main Portal"
-                className="no-print p-2 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5 text-sm font-semibold cursor-pointer"
+                className="no-print p-1.5 sm:px-2.5 sm:py-1.5 text-slate-300 hover:text-white rounded-lg hover:bg-slate-800 transition-colors flex items-center gap-1.5 text-xs sm:text-sm font-semibold cursor-pointer whitespace-nowrap shrink-0"
               >
-                <ArrowLeft className="w-4 h-4" />
-                <span className="hidden sm:inline">Home</span>
+                <ArrowLeft className="w-4 h-4 shrink-0" />
+                <span className="hidden md:inline">Home</span>
               </button>
             )}
 
             <div 
               onClick={onReturnHome} 
-              className={`flex items-center gap-2.5 ${onReturnHome ? 'cursor-pointer group' : ''}`}
+              className={`flex items-center gap-2 min-w-0 ${onReturnHome ? 'cursor-pointer group' : ''}`}
               title={onReturnHome ? "Go to Main Portal" : undefined}
             >
-              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white/95 p-1 shadow-md border border-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-lg bg-white/95 p-1 shadow-md border border-white/20 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <img
                   src="/assets/cropped-itc_tight.png"
                   alt="ITC Logo"
@@ -102,11 +105,11 @@ export function Header({
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-slate-100 text-sm sm:text-base tracking-tight group-hover:text-sky-400 transition-colors">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="font-bold text-slate-100 text-xs sm:text-sm lg:text-base tracking-tight group-hover:text-sky-400 transition-colors whitespace-nowrap truncate">
                   {isStudent ? 'Student Timetable' : 'Class Monitor'}
                 </span>
-                <span className={`text-xs px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider ${
+                <span className={`hidden md:inline-block text-[11px] px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider whitespace-nowrap shrink-0 ${
                   isStudent
                     ? 'bg-sky-950 text-sky-300 border border-sky-800'
                     : 'bg-amber-950 text-amber-300 border border-amber-800'
@@ -117,55 +120,72 @@ export function Header({
             </div>
           </div>
 
-          {/* Center: Clean Nav Tabs with unique URLs & larger text */}
-          <nav className="no-print hidden sm:flex items-center gap-1.5 bg-slate-950/70 p-1 rounded-xl border border-slate-800">
+          {/* Center: Clean Single-Line Nav Tabs (Visible on xl+ desktop screens where full width fits without wrapping) */}
+          <nav className="no-print hidden xl:flex items-center gap-1 bg-slate-950/70 p-1 rounded-xl border border-slate-800 shrink-0">
             <button
               onClick={() => onSelectMode('matrix')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeMode === 'matrix'
                   ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
                   : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
               }`}
             >
-              <CalendarDays className="w-4 h-4" />
+              <CalendarDays className="w-3.5 h-3.5 shrink-0" />
               <span>Timetable</span>
             </button>
 
             <button
               onClick={() => onSelectMode('agenda')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                 activeMode === 'agenda'
                   ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
                   : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
               }`}
             >
-              <Calendar className="w-4 h-4" />
+              <Calendar className="w-3.5 h-3.5 shrink-0" />
               <span>Daily Agenda</span>
+            </button>
+
+            <button
+              onClick={() => onSelectMode('makeup')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                activeMode === 'makeup'
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-xs'
+                  : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
+              }`}
+            >
+              <CalendarPlus className="w-3.5 h-3.5 shrink-0" />
+              <span>Make-up Classes</span>
+              {activeMakeupCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                  {activeMakeupCount}
+                </span>
+              )}
             </button>
 
             {!isStudent && (
               <>
                 <button
                   onClick={() => onSelectMode('room')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                     activeMode === 'room'
                       ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
                       : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
                   }`}
                 >
-                  <Building2 className="w-4 h-4" />
+                  <Building2 className="w-3.5 h-3.5 shrink-0" />
                   <span>Rooms</span>
                 </button>
 
                 <button
                   onClick={() => onSelectMode('lecturer')}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                     activeMode === 'lecturer'
                       ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
                       : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
                   }`}
                 >
-                  <Users className="w-4 h-4" />
+                  <Users className="w-3.5 h-3.5 shrink-0" />
                   <span>Lecturers</span>
                 </button>
               </>
@@ -174,28 +194,28 @@ export function Header({
             {isStudent && onOpenClubModal && (
               <button
                 onClick={onOpenClubModal}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   activeMode === 'clubs'
                     ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-xs'
                     : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 border border-transparent'
                 }`}
               >
-                <Users className="w-4 h-4" />
+                <Users className="w-3.5 h-3.5 shrink-0" />
                 <span>Clubs</span>
               </button>
             )}
           </nav>
 
           {/* Right: Actions & User Settings Dropdown */}
-          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Class Monitor: Book Class button */}
             {!isStudent && onOpenBookingModal && (
               <button
                 onClick={onOpenBookingModal}
                 title="Book Room for Make-up Class"
-                className="no-print flex items-center gap-1.5 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/80 rounded-lg text-xs sm:text-sm font-bold text-white shadow-xs transition-colors cursor-pointer"
+                className="no-print flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/80 rounded-lg text-xs font-bold text-white shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
-                <Plus className="w-4 h-4" />
+                <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span>Book Class</span>
               </button>
             )}
@@ -205,7 +225,7 @@ export function Header({
               <button
                 onClick={onOpenInbox}
                 title="Notification Inbox"
-                className="no-print relative p-2 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80 rounded-lg text-sm transition-colors cursor-pointer"
+                className="no-print relative p-2 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80 rounded-lg text-sm transition-colors cursor-pointer shrink-0"
               >
                 <Bell className="w-4 h-4 text-slate-200" />
                 {unreadNotificationsCount > 0 && (
@@ -218,21 +238,19 @@ export function Header({
 
             {/* User Profile Pill with Settings Menu */}
             {userProfile ? (
-              <div className="relative no-print" ref={userMenuRef}>
+              <div className="relative no-print shrink-0" ref={userMenuRef}>
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-750 border border-slate-700 text-sm transition-all cursor-pointer"
+                  className="flex items-center gap-2 px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-750 border border-slate-700 text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap"
                   title="Account & Settings"
                 >
-                  <div className="w-6.5 h-6.5 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center text-xs font-bold shrink-0">
+                  <div className="w-6 h-6 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center text-xs font-bold shrink-0">
                     {userProfile.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'U'}
                   </div>
-                  <div className="hidden sm:block text-left">
-                    <div className="font-semibold text-white truncate max-w-[120px] text-xs sm:text-sm">
-                      {userProfile.displayName || userProfile.email.split('@')[0]}
-                    </div>
+                  <div className="hidden sm:block text-left max-w-[95px] md:max-w-[125px] truncate font-semibold text-white text-xs">
+                    {userProfile.displayName || userProfile.email.split('@')[0]}
                   </div>
-                  <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
                 </button>
 
                 {/* Settings Dropdown Menu */}
@@ -326,9 +344,9 @@ export function Header({
               onOpenAuthModal && (
                 <button
                   onClick={onOpenAuthModal}
-                  className="no-print flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-sm font-bold shadow-xs transition-colors cursor-pointer"
+                  className="no-print flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs sm:text-sm font-bold shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <LogIn className="w-4 h-4" />
+                  <LogIn className="w-4 h-4 shrink-0" />
                   <span>Sign In</span>
                 </button>
               )
@@ -337,43 +355,89 @@ export function Header({
 
         </div>
 
-        {/* Mobile View Switcher Tabs (Only visible on small screens) */}
-        <div className="sm:hidden flex items-center justify-around py-2 border-t border-slate-800/60 text-sm overflow-x-auto">
+        {/* Responsive Sub-Bar Navigation Tabs (Visible on < xl screens: mobile, tablet, compact laptops) */}
+        <div className="no-print xl:hidden flex items-center gap-1.5 py-2 border-t border-slate-800/70 overflow-x-auto">
           <button
             onClick={() => onSelectMode('matrix')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-              activeMode === 'matrix' ? 'text-sky-300 bg-sky-950/80 border border-sky-800' : 'text-slate-400'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+              activeMode === 'matrix'
+                ? 'text-sky-300 bg-sky-950/90 border border-sky-800'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
             }`}
           >
-            Timetable
+            <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+            <span>Timetable</span>
           </button>
+
           <button
             onClick={() => onSelectMode('agenda')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-              activeMode === 'agenda' ? 'text-sky-300 bg-sky-950/80 border border-sky-800' : 'text-slate-400'
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+              activeMode === 'agenda'
+                ? 'text-sky-300 bg-sky-950/90 border border-sky-800'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
             }`}
           >
-            Agenda
+            <Calendar className="w-3.5 h-3.5 shrink-0" />
+            <span>Daily Agenda</span>
           </button>
+
+          <button
+            onClick={() => onSelectMode('makeup')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+              activeMode === 'makeup'
+                ? 'text-emerald-300 bg-emerald-950/90 border border-emerald-800'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
+            }`}
+          >
+            <CalendarPlus className="w-3.5 h-3.5 shrink-0" />
+            <span>Make-up Classes</span>
+            {activeMakeupCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                {activeMakeupCount}
+              </span>
+            )}
+          </button>
+
           {!isStudent && (
             <>
               <button
                 onClick={() => onSelectMode('room')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                  activeMode === 'room' ? 'text-sky-300 bg-sky-950/80 border border-sky-800' : 'text-slate-400'
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+                  activeMode === 'room'
+                    ? 'text-sky-300 bg-sky-950/90 border border-sky-800'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
                 }`}
               >
-                Rooms
+                <Building2 className="w-3.5 h-3.5 shrink-0" />
+                <span>Rooms</span>
               </button>
+
               <button
                 onClick={() => onSelectMode('lecturer')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
-                  activeMode === 'lecturer' ? 'text-sky-300 bg-sky-950/80 border border-sky-800' : 'text-slate-400'
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+                  activeMode === 'lecturer'
+                    ? 'text-sky-300 bg-sky-950/90 border border-sky-800'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
                 }`}
               >
-                Lecturers
+                <Users className="w-3.5 h-3.5 shrink-0" />
+                <span>Lecturers</span>
               </button>
             </>
+          )}
+
+          {isStudent && onOpenClubModal && (
+            <button
+              onClick={onOpenClubModal}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${
+                activeMode === 'clubs'
+                  ? 'text-sky-300 bg-sky-950/90 border border-sky-800'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border border-transparent'
+              }`}
+            >
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              <span>Clubs</span>
+            </button>
           )}
         </div>
 

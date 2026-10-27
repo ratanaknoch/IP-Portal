@@ -21,20 +21,27 @@ import {
   getCurrentOrClosestSlot, 
   parseSlotMinutes 
 } from '../data/scheduleData';
-import { isBookingExpired, MakeupClassBooking } from './MakeupClassBookingModal';
+import { 
+  isBookingInCurrentWeek, 
+  isCancellationInCurrentWeek,
+  MakeupClassBooking, 
+  CancelledClassSession 
+} from './MakeupClassBookingModal';
 
 interface FreeStudyRoomModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectRoom?: (roomName: string) => void;
   makeupBookings?: MakeupClassBooking[];
+  cancelledClasses?: CancelledClassSession[];
 }
 
 export function FreeStudyRoomModal({
   isOpen,
   onClose,
   onSelectRoom,
-  makeupBookings = []
+  makeupBookings = [],
+  cancelledClasses = []
 }: FreeStudyRoomModalProps) {
   const cambodiaTime = getCambodiaTime();
   
@@ -59,17 +66,25 @@ export function FreeStudyRoomModal({
 
   // Compute room statuses for the selected day and time slot
   const roomStatuses = useMemo(() => {
-    const days = SCHEDULE_DATA.meta.days;
     const timeSlots = SCHEDULE_DATA.meta.timeSlots;
     const currentSlotIndex = timeSlots.indexOf(selectedSlot);
 
-    const activeMakeups = makeupBookings.filter(m => !isBookingExpired(m));
+    const activeMakeups = makeupBookings.filter(m => isBookingInCurrentWeek(m));
+    const activeCancellations = cancelledClasses.filter(c => isCancellationInCurrentWeek(c));
+
+    const isSessionActiveAt = (room: string, day: string, slot: string) => {
+      return ALL_SESSIONS.find(s => {
+        if (s.room.trim() !== room || s.day !== day || s.time !== slot) return false;
+        const isCancelled = activeCancellations.some(
+          c => c.groupId === s.groupId && c.day === s.day && c.time === s.time
+        );
+        return !isCancelled;
+      });
+    };
 
     return FREE_STUDY_ROOMS.map(room => {
-      // Find session in this room at this slot & day
-      const currentSession = ALL_SESSIONS.find(
-        s => s.room.trim() === room && s.day === selectedDay && s.time === selectedSlot
-      );
+      // Find active (non-cancelled) session in this room at this slot & day
+      const currentSession = isSessionActiveAt(room, selectedDay, selectedSlot);
       const currentMakeup = activeMakeups.find(
         m => m.room.trim() === room && 
           m.day === selectedDay && 
@@ -85,9 +100,7 @@ export function FreeStudyRoomModal({
       if (isFree && currentSlotIndex >= 0) {
         for (let i = currentSlotIndex; i < timeSlots.length; i++) {
           const slotToCheck = timeSlots[i];
-          const hasClass = ALL_SESSIONS.some(
-            s => s.room.trim() === room && s.day === selectedDay && s.time === slotToCheck
-          );
+          const hasClass = Boolean(isSessionActiveAt(room, selectedDay, slotToCheck));
           const hasMakeup = activeMakeups.some(
             m => m.room.trim() === room && 
               m.day === selectedDay && 
@@ -114,7 +127,7 @@ export function FreeStudyRoomModal({
           day: currentMakeup.day,
           time: currentMakeup.time,
           course: `${currentMakeup.course} [Make-up]`,
-          type: 'Lecture' as const,
+          type: (currentMakeup.sessionType || 'Lecture') as 'Lecture' | 'Tutorial' | 'Practical',
           lecturer: `Booked by ${currentMakeup.bookedBy}`,
           room: currentMakeup.room,
           groupId: currentMakeup.groupId,
@@ -127,7 +140,7 @@ export function FreeStudyRoomModal({
           activeMakeups.filter(m => m.room.trim() === room && m.day === selectedDay).length
       };
     });
-  }, [selectedDay, selectedSlot, makeupBookings]);
+  }, [selectedDay, selectedSlot, makeupBookings, cancelledClasses]);
 
   // Filtered rooms based on user preferences
   const filteredRooms = roomStatuses.filter(item => {

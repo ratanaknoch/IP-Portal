@@ -7,8 +7,14 @@ import {
   getCambodiaTime,
   getSlotLiveStatus
 } from '../data/scheduleData';
-import { isBookingExpired, MakeupClassBooking } from './MakeupClassBookingModal';
-import { Calendar, Clock, MapPin, User, Bookmark, CheckCircle2 } from 'lucide-react';
+import { 
+  isBookingInCurrentWeek, 
+  isCancellationInCurrentWeek,
+  MakeupClassBooking, 
+  CancelledClassSession,
+  getActiveWeekBounds
+} from './MakeupClassBookingModal';
+import { Clock, Ban } from 'lucide-react';
 
 interface DailyAgendaProps {
   onSelectSession: (session: ScheduleSession) => void;
@@ -16,6 +22,7 @@ interface DailyAgendaProps {
   isStudentMode?: boolean;
   activeGroupId?: string;
   makeupBookings?: MakeupClassBooking[];
+  cancelledClasses?: CancelledClassSession[];
 }
 
 export function DailyAgenda({ 
@@ -23,9 +30,11 @@ export function DailyAgenda({
   searchQuery, 
   isStudentMode = false, 
   activeGroupId,
-  makeupBookings = []
+  makeupBookings = [],
+  cancelledClasses = []
 }: DailyAgendaProps) {
   const cambodiaTime = getCambodiaTime();
+  const weekBounds = getActiveWeekBounds();
   const defaultDay = (cambodiaTime.dayName === 'Sunday' ? 'Monday' : cambodiaTime.dayName) as ScheduleSession['day'];
   const [selectedDay, setSelectedDay] = useState<ScheduleSession['day']>(defaultDay);
   const [selectedCohort, setSelectedCohort] = useState<string>('ALL');
@@ -33,35 +42,53 @@ export function DailyAgenda({
   const days = SCHEDULE_DATA.meta.days;
   const timeSlots = SCHEDULE_DATA.meta.timeSlots;
 
-  // Filter out expired bookings
-  const activeMakeups = makeupBookings.filter(m => !isBookingExpired(m));
+  // Filter active make-up bookings and cancelled classes for the current week
+  const activeMakeups = makeupBookings.filter(m => isBookingInCurrentWeek(m));
+  const activeCancellations = cancelledClasses.filter(c => isCancellationInCurrentWeek(c));
 
-  // Overwrite regular classes with make-up classes on the same day, time, and group
-  const regularFiltered = ALL_SESSIONS.filter(reg => {
-    const isOverwritten = activeMakeups.some(m => 
-      m.groupId === reg.groupId &&
-      m.day === reg.day &&
-      (m.timeSlots ? m.timeSlots.includes(reg.time) : (m.time === reg.time || m.time.includes(reg.time)))
-    );
-    return !isOverwritten;
-  });
+  // Overwrite regular classes with make-up classes on the same day, time, and group,
+  // and mark cancelled regular classes so students see them as Cancelled
+  const regularProcessed: ScheduleSession[] = ALL_SESSIONS
+    .filter(reg => {
+      const isOverwritten = activeMakeups.some(m => 
+        m.groupId === reg.groupId &&
+        m.day === reg.day &&
+        (m.timeSlots ? m.timeSlots.includes(reg.time) : (m.time === reg.time || m.time.includes(reg.time)))
+      );
+      return !isOverwritten;
+    })
+    .map(reg => {
+      const cancelled = activeCancellations.find(
+        c => c.groupId === reg.groupId && c.day === reg.day && c.time === reg.time
+      );
+      if (cancelled) {
+        return {
+          ...reg,
+          isCancelledThisWeek: true,
+          cancelledData: cancelled
+        } as ScheduleSession;
+      }
+      return reg;
+    });
 
   const makeupSessions: ScheduleSession[] = activeMakeups.flatMap(m => {
     const slots = (m.timeSlots && m.timeSlots.length > 0) ? m.timeSlots : [m.time];
+    const chosenType = m.sessionType || 'Lecture';
     return slots.map(slot => ({
       day: m.day,
       time: slot,
       course: `${m.course} [Make-up]`,
-      type: 'Lecture' as const,
-      lecturer: `Reserved by ${m.bookedBy}${m.date ? ` (${m.date})` : ''}`,
+      type: chosenType,
+      lecturer: `Booked by ${m.bookedBy}${m.date ? ` (${m.date})` : ''}`,
       room: m.room,
       groupId: m.groupId,
       groupName: m.groupId,
-      cohort: m.generation || (m.groupId.split('-')[0])
-    }));
+      cohort: m.generation || (m.groupId.split('-')[0]),
+      makeupBookingData: m
+    } as ScheduleSession));
   });
 
-  const combinedSessions: ScheduleSession[] = [...regularFiltered, ...makeupSessions];
+  const combinedSessions: ScheduleSession[] = [...regularProcessed, ...makeupSessions];
 
   // Filter sessions for the selected day
   const sessionsOnDay = combinedSessions.filter(s => {
@@ -97,7 +124,7 @@ export function DailyAgenda({
                 <button
                   key={day}
                   onClick={() => setSelectedDay(day)}
-                  className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap flex items-center gap-1 ${
+                  className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer ${
                     isSelected
                       ? 'bg-slate-100 text-slate-900 font-bold shadow-xs'
                       : 'text-slate-300 hover:bg-slate-800 border border-slate-800'
@@ -124,7 +151,7 @@ export function DailyAgenda({
                 <button
                   key={cohort}
                   onClick={() => setSelectedCohort(cohort)}
-                  className={`px-2 py-0.5 text-xs font-medium rounded transition-colors ${
+                  className={`px-2 py-0.5 text-xs font-medium rounded transition-colors cursor-pointer ${
                     selectedCohort === cohort
                       ? 'bg-slate-100 text-slate-900 font-bold'
                       : 'text-slate-400 hover:text-white border border-slate-800'
@@ -144,7 +171,7 @@ export function DailyAgenda({
 
         <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-800">
           <span>
-            Schedule for <strong className="text-slate-200">{selectedDay}</strong>
+            Schedule for <strong className="text-slate-200">{selectedDay} ({weekBounds.dayDatesMap[selectedDay]})</strong>
           </span>
           <span className="font-mono">{sessionsOnDay.length} sessions listed</span>
         </div>
@@ -191,33 +218,59 @@ export function DailyAgenda({
                   {sessionsInSlot.map((session, idx) => {
                     const style = getSessionTypeStyle(session.type);
                     const isMakeup = session.course.includes('[Make-up]');
+                    const isCancelled = Boolean((session as any).isCancelledThisWeek);
+                    const cancelledData = (session as any).cancelledData as CancelledClassSession | undefined;
 
                     return (
                       <div
                         key={idx}
                         onClick={() => onSelectSession(session)}
                         className={`p-3 rounded border cursor-pointer transition-all ${
-                          isMakeup 
+                          isCancelled
+                            ? 'bg-rose-950/35 border-rose-800/80 text-rose-200'
+                            : isMakeup 
                             ? 'bg-amber-950/40 border-amber-800 text-amber-200' 
                             : style.card
                         }`}
                       >
                         <div className="flex items-center justify-between gap-1 mb-1">
-                          <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${
-                            isMakeup ? 'bg-amber-950 text-amber-300 border border-amber-800' : style.badge
-                          }`}>
-                            {isMakeup ? 'Make-up' : session.type}
-                          </span>
+                          {isCancelled ? (
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 flex items-center gap-1">
+                              <Ban className="w-3 h-3" />
+                              <span>Cancelled</span>
+                            </span>
+                          ) : isMakeup ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                                Make-up
+                              </span>
+                              <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${style.badge}`}>
+                                {session.type}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${style.badge}`}>
+                              {session.type}
+                            </span>
+                          )}
                           <span className="font-mono text-[10px] text-slate-400">
                             {session.groupId}
                           </span>
                         </div>
-                        <h4 className="font-semibold text-xs text-slate-100 line-clamp-1">
-                          {session.course}
+                        <h4 className={`font-semibold text-xs line-clamp-1 ${
+                          isCancelled ? 'text-slate-300 line-through decoration-rose-400' : 'text-slate-100'
+                        }`}>
+                          {session.course.replace(' [Make-up]', '')}
                         </h4>
                         <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
-                          <span className="truncate">{session.lecturer}</span>
-                          <span className="font-mono shrink-0 ml-1">{session.room || "TBD"}</span>
+                          <span className="truncate">
+                            {isCancelled && cancelledData
+                              ? `Cancelled by ${cancelledData.cancelledBy}`
+                              : session.lecturer}
+                          </span>
+                          <span className={`font-mono shrink-0 ml-1 ${isCancelled ? 'text-emerald-300' : ''}`}>
+                            {isCancelled ? `${session.room || 'TBD'} (Free)` : session.room || 'TBD'}
+                          </span>
                         </div>
                       </div>
                     );

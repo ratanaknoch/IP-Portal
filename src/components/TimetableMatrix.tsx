@@ -1,27 +1,24 @@
-import { useState } from 'react';
 import { 
   SCHEDULE_DATA, 
-  GroupSchedule, 
   ScheduleSession, 
   getSessionTypeStyle,
   getCambodiaTime,
   getSlotLiveStatus
 } from '../data/scheduleData';
-import { isBookingExpired, MakeupClassBooking } from './MakeupClassBookingModal';
 import { 
-  Search, 
+  isBookingInCurrentWeek, 
+  isCancellationInCurrentWeek,
+  MakeupClassBooking, 
+  CancelledClassSession,
+  getActiveWeekBounds
+} from './MakeupClassBookingModal';
+import { 
   MapPin, 
   User, 
-  CheckCircle2, 
-  Clock, 
   Bookmark, 
-  Calendar, 
-  Printer, 
-  Check,
   RefreshCw,
-  Building2,
-  ExternalLink,
-  Sparkles
+  CalendarPlus,
+  Ban
 } from 'lucide-react';
 
 interface TimetableMatrixProps {
@@ -36,7 +33,9 @@ interface TimetableMatrixProps {
   isStudentMode?: boolean;
   onChangeClass?: () => void;
   onOpenFreeRooms?: () => void;
+  onOpenMakeupPage?: () => void;
   makeupBookings?: MakeupClassBooking[];
+  cancelledClasses?: CancelledClassSession[];
 }
 
 export function TimetableMatrix({
@@ -50,15 +49,18 @@ export function TimetableMatrix({
   onSetMyCohort,
   isStudentMode = false,
   onChangeClass,
-  onOpenFreeRooms,
-  makeupBookings = []
+  onOpenMakeupPage,
+  makeupBookings = [],
+  cancelledClasses = []
 }: TimetableMatrixProps) {
   const cambodiaTime = getCambodiaTime();
+  const weekBounds = getActiveWeekBounds();
   const days = SCHEDULE_DATA.meta.days;
   const timeSlots = SCHEDULE_DATA.meta.timeSlots;
 
-  // Filter out expired bookings
-  const activeMakeupBookings = makeupBookings.filter(m => !isBookingExpired(m));
+  // Filter make-up bookings and cancelled classes active for the current week (Mon–Sat, resets every Sunday)
+  const currentWeekMakeups = makeupBookings.filter(m => isBookingInCurrentWeek(m));
+  const currentWeekCancellations = cancelledClasses.filter(c => isCancellationInCurrentWeek(c));
 
   // Filter available groups based on selected cohort (for class monitor view)
   const filteredGroups = selectedCohort === 'ALL'
@@ -70,11 +72,15 @@ export function TimetableMatrix({
 
   const isMyCohort = myCohort === activeGroup.id;
 
+  const groupMakeupsCount = currentWeekMakeups.filter(m => m.groupId === activeGroup.id).length;
+  const groupCancelledCount = currentWeekCancellations.filter(c => c.groupId === activeGroup.id).length;
+
   // Helper to find session for day and time slot
-  // CRITICAL REQUIREMENT: Make-up class bookings OVERWRITE any regular scheduled class on that time slot!
+  // 1. Make-up class bookings for the current week overwrite regular/cancelled slots
+  // 2. Cancelled classes for the current week display as Cancelled on the calendar (until Sunday reset)
+  // 3. Otherwise fall back to regular scheduled session
   const getSessionForSlot = (day: string, slot: string): ScheduleSession | undefined => {
-    // 1. Check make-up bookings FIRST (Overwrites regular class if class was cancelled)
-    const makeup = activeMakeupBookings.find(m => 
+    const makeup = currentWeekMakeups.find(m => 
       m.groupId === activeGroup.id && 
       m.day === day && 
       (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot)))
@@ -82,23 +88,44 @@ export function TimetableMatrix({
 
     if (makeup) {
       const regularClass = activeGroup.schedule.find(s => s.day === day && s.time === slot);
+      const chosenType = makeup.sessionType || 'Lecture';
       return {
         day: makeup.day,
         time: slot,
         course: `${makeup.course} [Make-up]`,
-        type: 'Lecture',
+        type: chosenType,
         lecturer: `Booked by ${makeup.bookedBy}${makeup.date ? ` (${makeup.date})` : ''}`,
         room: makeup.room,
         groupId: makeup.groupId,
         groupName: activeGroup.name,
         cohort: activeGroup.cohort,
-        ...(regularClass ? { overwrittenCourse: regularClass.course } : {})
-      } as ScheduleSession;
+        ...(regularClass ? { overwrittenCourse: regularClass.course } : {}),
+        makeupBookingData: makeup
+      } as ScheduleSession & { overwrittenCourse?: string; makeupBookingData?: MakeupClassBooking };
     }
 
-    // 2. Fall back to regular scheduled session
     const regular = activeGroup.schedule.find(s => s.day === day && s.time === slot);
-    if (regular) return regular;
+    if (regular) {
+      const cancelled = currentWeekCancellations.find(
+        c => c.groupId === activeGroup.id && c.day === day && c.time === slot
+      );
+      if (cancelled) {
+        return {
+          ...regular,
+          groupId: activeGroup.id,
+          groupName: activeGroup.name,
+          cohort: activeGroup.cohort,
+          isCancelledThisWeek: true,
+          cancelledData: cancelled
+        } as ScheduleSession & { isCancelledThisWeek?: boolean; cancelledData?: CancelledClassSession };
+      }
+      return {
+        ...regular,
+        groupId: activeGroup.id,
+        groupName: activeGroup.name,
+        cohort: activeGroup.cohort
+      };
+    }
 
     return undefined;
   };
@@ -132,7 +159,7 @@ export function TimetableMatrix({
               {onChangeClass && (
                 <button
                   onClick={onChangeClass}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-md transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-750 border border-slate-700 rounded-md transition-colors cursor-pointer"
                 >
                   <RefreshCw className="w-3.5 h-3.5 text-slate-400" />
                   <span>Change Class</span>
@@ -140,8 +167,21 @@ export function TimetableMatrix({
               )}
             </div>
 
-            <div className="text-[11px] text-slate-400 font-medium">
-              {activeGroup.schedule.length} sessions/week
+            <div className="flex items-center gap-3 flex-wrap">
+              {(groupMakeupsCount > 0 || groupCancelledCount > 0) && onOpenMakeupPage && (
+                <button
+                  onClick={onOpenMakeupPage}
+                  className="text-xs font-semibold text-emerald-300 hover:text-emerald-200 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <CalendarPlus className="w-3.5 h-3.5" />
+                  <span>
+                    {groupMakeupsCount} Make-up · {groupCancelledCount} Cancelled this week
+                  </span>
+                </button>
+              )}
+              <div className="text-[11px] text-slate-400 font-medium">
+                {activeGroup.schedule.length} sessions/week · Resets Sunday
+              </div>
             </div>
           </div>
         ) : (
@@ -196,7 +236,7 @@ export function TimetableMatrix({
                 <button
                   onClick={() => onSetMyCohort(activeGroup.id)}
                   title={isMyCohort ? "Default pinned class" : "Pin this class as your default"}
-                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors ${
+                  className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md border transition-colors cursor-pointer ${
                     isMyCohort
                       ? 'bg-sky-950/80 border-sky-600 text-sky-300'
                       : 'bg-slate-800 hover:bg-slate-750 border-slate-700 text-slate-400 hover:text-white'
@@ -208,8 +248,13 @@ export function TimetableMatrix({
               )}
             </div>
 
-            <div className="text-[11px] text-slate-400 font-medium">
-              Showing <span className="font-bold text-slate-200">{activeGroup.id}</span> · {activeGroup.schedule.length} weekly sessions
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-[11px] text-slate-400">
+                Click any class on the timetable to view details or mark as cancelled for this week ({weekBounds.formattedWeekRange})
+              </span>
+              <div className="text-[11px] text-slate-400 font-medium">
+                Showing <span className="font-bold text-slate-200">{activeGroup.id}</span> · {activeGroup.schedule.length} weekly sessions
+              </div>
             </div>
           </div>
         )}
@@ -251,6 +296,7 @@ export function TimetableMatrix({
                 </th>
                 {days.map((day) => {
                   const isToday = cambodiaTime.dayName === day;
+                  const dayDate = weekBounds.dayDatesMap[day];
                   return (
                     <th 
                       key={day}
@@ -260,13 +306,18 @@ export function TimetableMatrix({
                           : 'text-slate-200'
                       }`}
                     >
-                      <div className="flex items-center justify-center gap-1.5">
-                        <span>{day}</span>
-                        {isToday && (
-                          <span className="text-xs uppercase font-bold text-emerald-400 px-1.5 py-0.5 rounded bg-emerald-950/80 border border-emerald-800">
-                            Today
-                          </span>
-                        )}
+                      <div className="flex flex-col items-center justify-center gap-0.5">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span>{day}</span>
+                          {isToday && (
+                            <span className="text-[10px] uppercase font-bold text-emerald-400 px-1.5 py-0.2 rounded bg-emerald-950/80 border border-emerald-800">
+                              Today
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[10px] font-mono font-normal text-slate-400">
+                          {dayDate}
+                        </span>
                       </div>
                     </th>
                   );
@@ -312,6 +363,8 @@ export function TimetableMatrix({
                       }
 
                       const isMakeup = session.course.includes('[Make-up]');
+                      const isCancelled = Boolean((session as any).isCancelledThisWeek);
+                      const cancelledData = (session as any).cancelledData as CancelledClassSession | undefined;
                       const typeStyle = getSessionTypeStyle(session.type);
 
                       return (
@@ -329,7 +382,9 @@ export function TimetableMatrix({
                               cohort: activeGroup.cohort
                             })}
                             className={`p-2.5 rounded-lg border cursor-pointer transition-all duration-150 ${
-                              isMakeup
+                              isCancelled
+                                ? 'bg-rose-950/35 border-rose-800/80 text-rose-200 hover:border-rose-500'
+                                : isMakeup
                                 ? 'bg-amber-950/40 border-amber-800 text-amber-200 hover:border-amber-500'
                                 : typeStyle.card
                             } ${
@@ -337,35 +392,45 @@ export function TimetableMatrix({
                                 ? 'ring-2 ring-slate-100 shadow-sm' 
                                 : ''
                             } ${
-                              status?.isCurrent 
+                              status?.isCurrent && !isCancelled
                                 ? 'ring-2 ring-emerald-400 shadow-sm' 
                                 : ''
                             }`}
                           >
                             {/* Type and live status */}
-                            <div className="flex items-center justify-between gap-1 mb-1.5">
-                              <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${
-                                isMakeup 
-                                  ? 'bg-amber-950 text-amber-300 border border-amber-800' 
-                                  : typeStyle.badge
-                              }`}>
-                                {isMakeup 
-                                  ? (session as any).overwrittenCourse 
-                                    ? 'Make-up (Replaced)' 
-                                    : 'Make-up' 
-                                  : session.type}
-                              </span>
-                              {status?.isCurrent && (
-                                <span className="flex items-center gap-1 text-xs font-bold text-emerald-300">
-                                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            <div className="flex items-center justify-between gap-1 mb-1.5 flex-wrap">
+                              {isCancelled ? (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-700 flex items-center gap-1">
+                                  <Ban className="w-3 h-3 text-rose-400" />
+                                  <span>Cancelled</span>
+                                </span>
+                              ) : isMakeup ? (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                                    Make-up
+                                  </span>
+                                  <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${typeStyle.badge}`}>
+                                    {session.type}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${typeStyle.badge}`}>
+                                  {session.type}
+                                </span>
+                              )}
+
+                              {status?.isCurrent && !isCancelled && (
+                                <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
                                   NOW
                                 </span>
                               )}
                             </div>
 
                             {/* Course Title */}
-                            <h4 className="font-bold text-slate-100 leading-snug line-clamp-2 text-sm sm:text-[15px]">
-                              {session.course}
+                            <h4 className={`font-bold leading-snug line-clamp-2 text-sm sm:text-[15px] ${
+                              isCancelled ? 'text-slate-300 line-through decoration-rose-400' : 'text-slate-100'
+                            }`}>
+                              {session.course.replace(' [Make-up]', '')}
                             </h4>
 
                             {isMakeup && (session as any).overwrittenCourse && (
@@ -374,15 +439,29 @@ export function TimetableMatrix({
                               </div>
                             )}
 
+                            {isCancelled && cancelledData && (
+                              <div className="mt-1 text-[11px] text-rose-300 font-medium truncate">
+                                {cancelledData.reason || 'Cancelled for this week'}
+                              </div>
+                            )}
+
                             {/* Lecturer & Room details */}
                             <div className="mt-2 pt-1.5 border-t border-slate-700/60 space-y-1 text-xs">
                               <div className="flex items-center gap-1.5 text-slate-200 truncate" title={session.lecturer}>
                                 <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                                <span className="truncate font-medium">{session.lecturer}</span>
+                                <span className="truncate font-medium">
+                                  {isCancelled && cancelledData
+                                    ? `By ${cancelledData.cancelledBy}`
+                                    : session.lecturer}
+                                </span>
                               </div>
                               <div className="flex items-center gap-1.5 font-mono text-xs text-slate-300 truncate font-semibold">
-                                <MapPin className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                                <span>{session.room || "Room TBD"}</span>
+                                <MapPin className={`w-3.5 h-3.5 shrink-0 ${isCancelled ? 'text-emerald-400' : 'text-sky-400'}`} />
+                                <span className={isCancelled ? 'text-emerald-300' : ''}>
+                                  {isCancelled
+                                    ? `${session.room || 'Room TBD'} (Free)`
+                                    : session.room || 'Room TBD'}
+                                </span>
                               </div>
                             </div>
 
@@ -399,7 +478,7 @@ export function TimetableMatrix({
 
         {/* Legend Footer */}
         <div className="no-print p-3 bg-slate-850 border-t border-slate-800 flex flex-wrap items-center justify-between text-xs text-slate-400 gap-3">
-          <div className="flex items-center gap-4">
+          <div className="flex flex-wrap items-center gap-4">
             <span className="font-semibold uppercase text-[10px] tracking-wider text-slate-400">
               Type Legend:
             </span>
@@ -408,16 +487,20 @@ export function TimetableMatrix({
               <span>Lecture</span>
             </div>
             <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded bg-emerald-500"></span>
-              <span>Practical / TP</span>
+              <span className="w-2.5 h-2.5 rounded bg-sky-500"></span>
+              <span>Practical / Lab</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded bg-amber-500"></span>
               <span>Tutorial / Make-up</span>
             </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded bg-rose-500"></span>
+              <span>Cancelled (This Week)</span>
+            </div>
           </div>
           <div className="text-[11px] text-slate-400">
-            Exported .ics calendar works seamlessly with Google Calendar, iOS Calendar, and Outlook.
+            Make-up & cancelled classes remain visible all week and reset to the normal schedule every Sunday.
           </div>
         </div>
 

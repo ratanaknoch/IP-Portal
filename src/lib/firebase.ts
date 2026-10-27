@@ -17,11 +17,11 @@ import {
   GoogleAuthProvider, 
   signInWithPopup, 
   signOut as fbSignOut, 
-  onAuthStateChanged,
   User as FirebaseUser
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { MakeupClassBooking } from '../components/MakeupClassBookingModal';
+import { MakeupClassBooking, CancelledClassSession, MakeupSessionType } from '../components/MakeupClassBookingModal';
+import { SessionType } from '../data/scheduleData';
 
 // Resolve configuration: fallback between bundled config and VITE_ environment variables
 const activeFirebaseConfig = {
@@ -167,7 +167,6 @@ export async function loginWithGoogle(): Promise<{ user: FirebaseUser; profile: 
           const parsed = JSON.parse(cached);
           if (parsed && (parsed.uid === result.user.uid || parsed.email === result.user.email) && (parsed.onboardingCompleted || parsed.groupId)) {
             profile = { ...parsed, uid: result.user.uid };
-            // Background sync back to Firestore
             setDoc(doc(db, 'users', result.user.uid), profile, { merge: true }).catch(() => {});
           }
         }
@@ -213,7 +212,6 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     console.warn('Could not fetch user profile from Firestore:', error);
   }
 
-  // Fallback to localStorage cache
   try {
     const cached = localStorage.getItem('itc_user_profile');
     if (cached) {
@@ -228,7 +226,6 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
 }
 
 export async function saveUserProfile(profile: UserProfile): Promise<void> {
-  const docPath = `users/${profile.uid}`;
   const fullProfile: UserProfile = {
     ...profile,
     onboardingCompleted: true,
@@ -305,7 +302,6 @@ export async function createNotification(notif: Omit<AppNotification, 'id'>): Pr
 }
 
 export async function markNotificationAsRead(notificationId: string, uid: string): Promise<void> {
-  const docPath = `notifications/${notificationId}`;
   try {
     await updateDoc(doc(db, 'notifications', notificationId), {
       readBy: arrayUnion(uid)
@@ -378,7 +374,6 @@ export function subscribeToNotifications(
         snapshot.forEach((d) => {
           const data = d.data();
           const aud = data.audience || 'all';
-          // Filter according to audience
           if (
             userRole === 'admin' ||
             aud === 'all' ||
@@ -399,7 +394,6 @@ export function subscribeToNotifications(
             });
           }
         });
-        // Sort latest first
         list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         onUpdate(list);
       },
@@ -435,14 +429,17 @@ export function subscribeToMakeupBookings(
           bookings.push({
             id: d.id,
             course: data.course || '',
+            sessionType: (data.sessionType as MakeupSessionType) || 'Lecture',
             room: data.room || '',
-            generation: data.generation || 'I1',
+            generation: data.generation || (data.groupId ? data.groupId.split('-')[0] : 'I1'),
             groupId: data.groupId || '',
             date: data.date || '',
             day: data.day || 'Monday',
             time: data.time || '',
             timeSlots: data.timeSlots || (data.time ? data.time.split(', ') : []),
             bookedBy: data.bookedBy || 'Monitor',
+            bookedByUid: data.bookedByUid || '',
+            bookedByEmail: data.bookedByEmail || '',
             note: data.note || '',
             createdAt: data.createdAt || new Date().toISOString()
           });
@@ -479,25 +476,29 @@ export async function saveMakeupBooking(
   try {
     await setDoc(doc(db, 'makeupBookings', booking.id), {
       course: booking.course,
+      sessionType: booking.sessionType || 'Lecture',
       room: booking.room,
+      generation: booking.generation || (booking.groupId ? booking.groupId.split('-')[0] : 'I1'),
       groupId: booking.groupId,
       date: booking.date,
       day: booking.day,
       time: booking.time,
       timeSlots: booking.timeSlots || [],
       bookedBy: booking.bookedBy,
+      bookedByUid: booking.bookedByUid || creatorProfile?.uid || '',
+      bookedByEmail: booking.bookedByEmail || creatorProfile?.email || '',
       note: booking.note || '',
       createdAt: booking.createdAt
     });
 
-    // Send a notification to other class monitors
     const monitorName = creatorProfile?.displayName || booking.bookedBy || 'Class Monitor';
     const monitorGroup = booking.groupId;
+    const typeLabel = booking.sessionType || 'Lecture';
     
     await createNotification({
-      title: `Class Booking: ${booking.course}`,
-      message: `${monitorName} (${monitorGroup}) booked a make-up class in ${booking.room} on ${booking.day}, ${booking.date} (${booking.time}).`,
-      audience: 'monitors',
+      title: `Make-up ${typeLabel}: ${booking.course}`,
+      message: `${monitorName} (${monitorGroup}) scheduled a make-up ${typeLabel.toLowerCase()} in ${booking.room} on ${booking.day}, ${booking.date} (${booking.time}).`,
+      audience: 'all',
       senderName: monitorName,
       senderRole: 'Class Monitor',
       type: 'class_booking',
@@ -514,6 +515,107 @@ export async function deleteMakeupBooking(id: string): Promise<void> {
   const docPath = `makeupBookings/${id}`;
   try {
     await deleteDoc(doc(db, 'makeupBookings', id));
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, docPath);
+  }
+}
+
+// ==========================================
+// Cancelled Classes System (Weekly Reset on Sunday)
+// ==========================================
+
+export function subscribeToCancelledClasses(
+  onUpdate: (items: CancelledClassSession[]) => void,
+  onFailed?: (error: Error) => void
+): () => void {
+  const collectionPath = 'cancelledClasses';
+
+  try {
+    const unsub = onSnapshot(
+      collection(db, collectionPath),
+      (snapshot) => {
+        const items: CancelledClassSession[] = [];
+        snapshot.forEach((d) => {
+          const data = d.data();
+          items.push({
+            id: d.id,
+            groupId: data.groupId || '',
+            cohort: data.cohort || (data.groupId ? data.groupId.split('-')[0] : 'I1'),
+            day: data.day || 'Monday',
+            date: data.date || '',
+            time: data.time || '',
+            course: data.course || '',
+            type: (data.type as SessionType) || 'Lecture',
+            lecturer: data.lecturer || '',
+            room: data.room || '',
+            cancelledBy: data.cancelledBy || 'Class Monitor',
+            cancelledByUid: data.cancelledByUid || '',
+            cancelledByEmail: data.cancelledByEmail || '',
+            reason: data.reason || '',
+            createdAt: data.createdAt || new Date().toISOString()
+          });
+        });
+
+        items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        onUpdate(items);
+      },
+      (error) => {
+        console.warn('Error syncing cancelled classes, falling back to local cache:', error.message);
+        if (onFailed) onFailed(error);
+      }
+    );
+    return unsub;
+  } catch (error) {
+    console.warn('Could not initialize cancelledClasses listener:', error);
+    if (onFailed) onFailed(error as Error);
+    return () => {};
+  }
+}
+
+export async function saveCancelledClass(
+  item: CancelledClassSession,
+  creatorProfile?: UserProfile | null
+): Promise<void> {
+  const docPath = `cancelledClasses/${item.id}`;
+  try {
+    await setDoc(doc(db, 'cancelledClasses', item.id), {
+      groupId: item.groupId,
+      cohort: item.cohort,
+      day: item.day,
+      date: item.date,
+      time: item.time,
+      course: item.course,
+      type: item.type,
+      lecturer: item.lecturer,
+      room: item.room,
+      cancelledBy: item.cancelledBy,
+      cancelledByUid: item.cancelledByUid || creatorProfile?.uid || '',
+      cancelledByEmail: item.cancelledByEmail || creatorProfile?.email || '',
+      reason: item.reason || '',
+      createdAt: item.createdAt
+    });
+
+    const monitorName = creatorProfile?.displayName || item.cancelledBy || 'Class Monitor';
+
+    await createNotification({
+      title: `Class Cancelled (${item.groupId}): ${item.course}`,
+      message: `${monitorName} marked ${item.course} (${item.type}) for ${item.groupId} on ${item.day}, ${item.date} (${item.time}) as cancelled for this week.${item.room ? ` ${item.room} is now free during this slot.` : ''}`,
+      audience: 'all',
+      senderName: monitorName,
+      senderRole: 'Class Monitor',
+      type: 'class_booking',
+      createdAt: new Date().toISOString(),
+      readBy: creatorProfile?.uid ? [creatorProfile.uid] : []
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, docPath);
+  }
+}
+
+export async function deleteCancelledClass(id: string): Promise<void> {
+  const docPath = `cancelledClasses/${id}`;
+  try {
+    await deleteDoc(doc(db, 'cancelledClasses', id));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }

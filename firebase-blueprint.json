@@ -2,13 +2,18 @@
   "entities": {
     "makeupBooking": {
       "title": "MakeupClassBooking",
-      "description": "A scheduled classroom make-up or extra lecture booking reserved by a class monitor.",
+      "description": "A scheduled classroom make-up or extra lecture/tutorial/practical booking reserved by a class monitor for the current week.",
       "type": "object",
       "properties": {
         "course": {
           "type": "string",
           "description": "Name of the course or class subject",
           "maxLength": 200
+        },
+        "sessionType": {
+          "type": "string",
+          "description": "Type of make-up session",
+          "enum": ["Lecture", "Tutorial", "Practical"]
         },
         "room": {
           "type": "string",
@@ -38,12 +43,22 @@
         "time": {
           "type": "string",
           "description": "Time slot period",
-          "maxLength": 50
+          "maxLength": 100
         },
         "bookedBy": {
           "type": "string",
           "description": "Monitor identifier or name",
           "maxLength": 100
+        },
+        "bookedByUid": {
+          "type": "string",
+          "description": "UID of the class monitor or admin who created the booking",
+          "maxLength": 128
+        },
+        "bookedByEmail": {
+          "type": "string",
+          "description": "Email of the class monitor or admin who created the booking",
+          "maxLength": 150
         },
         "note": {
           "type": "string",
@@ -55,7 +70,70 @@
           "description": "ISO timestamp of when the reservation was made"
         }
       },
-      "required": ["course", "room", "generation", "groupId", "date", "day", "time", "bookedBy", "createdAt"]
+      "required": ["course", "room", "groupId", "date", "day", "time", "bookedBy", "createdAt"]
+    },
+    "cancelledClass": {
+      "title": "CancelledClassSession",
+      "description": "A regular scheduled class marked as cancelled for the current week by a class monitor, automatically resetting on Sunday.",
+      "type": "object",
+      "properties": {
+        "groupId": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "cohort": {
+          "type": "string",
+          "enum": ["I1", "I2", "I3", "I4"]
+        },
+        "day": {
+          "type": "string",
+          "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        },
+        "date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        },
+        "time": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "course": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "type": {
+          "type": "string",
+          "enum": ["Lecture", "Practical", "TP", "Tutorial", "Lab"]
+        },
+        "lecturer": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "room": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "cancelledBy": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "cancelledByUid": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "cancelledByEmail": {
+          "type": "string",
+          "maxLength": 150
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "createdAt": {
+          "type": "string"
+        }
+      },
+      "required": ["groupId", "day", "date", "time", "course", "cancelledBy", "createdAt"]
     },
     "userProfile": {
       "title": "UserProfile",
@@ -66,7 +144,7 @@
         "email": { "type": "string" },
         "displayName": { "type": "string" },
         "role": { "type": "string", "enum": ["student", "monitor", "admin"] },
-        "year": { "type": "string", "enum": ["I1", "I2", "I3", "I4", "Admin", "None"] },
+        "year": { "type": "string", "enum": ["I1", "I2", "I3", "I4", "I5", "Alumni", "Admin", "None"] },
         "groupId": { "type": "string" },
         "onboardingCompleted": { "type": "boolean" },
         "createdAt": { "type": "string" },
@@ -96,6 +174,10 @@
     "/makeupBookings/{bookingId}": {
       "schema": "#/entities/makeupBooking",
       "description": "Public timetable make-up reservations viewable by all students and manageable by authorized class monitors"
+    },
+    "/cancelledClasses/{cancelId}": {
+      "schema": "#/entities/cancelledClass",
+      "description": "Weekly cancelled class sessions marked by class monitors that reset every Sunday"
     },
     "/users/{userId}": {
       "schema": "#/entities/userProfile",

@@ -28,7 +28,12 @@ import {
   Plus,
   AlertTriangle
 } from 'lucide-react';
-import { isBookingExpired, MakeupClassBooking } from './MakeupClassBookingModal';
+import { 
+  isBookingInCurrentWeek, 
+  isCancellationInCurrentWeek,
+  MakeupClassBooking, 
+  CancelledClassSession 
+} from './MakeupClassBookingModal';
 
 interface RoomViewProps {
   selectedRoom: string;
@@ -37,6 +42,7 @@ interface RoomViewProps {
   onOpenBookingModal?: () => void;
   onOpenFreeRooms?: () => void;
   makeupBookings?: MakeupClassBooking[];
+  cancelledClasses?: CancelledClassSession[];
 }
 
 export function RoomView({
@@ -45,7 +51,8 @@ export function RoomView({
   onSelectSession,
   onOpenBookingModal,
   onOpenFreeRooms,
-  makeupBookings = []
+  makeupBookings = [],
+  cancelledClasses = []
 }: RoomViewProps) {
   const cambodiaTime = getCambodiaTime();
   const days = SCHEDULE_DATA.meta.days;
@@ -68,20 +75,36 @@ export function RoomView({
   const [inspectorSlot, setInspectorSlot] = useState<string>(defaultSlot);
   const [inspectorTimeQuery, setInspectorTimeQuery] = useState<string>('');
 
+  const activeMakeups = useMemo(
+    () => makeupBookings.filter(m => isBookingInCurrentWeek(m)),
+    [makeupBookings]
+  );
+
+  const activeCancellations = useMemo(
+    () => cancelledClasses.filter(c => isCancellationInCurrentWeek(c)),
+    [cancelledClasses]
+  );
+
   // Shorten room name for high-density matrix display (e.g. "Room A-109" -> "A-109")
   const formatRoomLabel = (room: string, format: 'short' | 'full') => {
     if (format === 'full') return room;
     return room.replace(/^Room\s+/i, '');
   };
 
-  // Helper: check if a room is occupied by a scheduled session or make-up booking
+  // Helper: check if a room is occupied by an active (non-cancelled) scheduled session or make-up booking
   const getOccupiedRoomsForSlot = (day: string, slot: string) => {
     const scheduled = ALL_SESSIONS
-      .filter(s => s.day === day && s.time === slot)
+      .filter(s => {
+        if (s.day !== day || s.time !== slot) return false;
+        const isCancelled = activeCancellations.some(
+          c => c.groupId === s.groupId && c.day === s.day && c.time === s.time
+        );
+        return !isCancelled;
+      })
       .map(s => s.room.trim());
     
-    const makeups = makeupBookings
-      .filter(m => !isBookingExpired(m) && m.day === day && (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot))))
+    const makeups = activeMakeups
+      .filter(m => m.day === day && (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot))))
       .map(m => m.room.trim());
 
     return Array.from(new Set([...scheduled, ...makeups]));
@@ -570,10 +593,14 @@ export function RoomView({
           {/* Cards for available rooms */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {FREE_STUDY_ROOMS.map(room => {
-              const occupiedSession = ALL_SESSIONS.find(
-                s => s.day === inspectorDay && s.time === inspectorSlot && s.room.trim() === room.trim()
-              );
-              const makeupSession = makeupBookings.find(
+              const occupiedSession = ALL_SESSIONS.find(s => {
+                if (s.day !== inspectorDay || s.time !== inspectorSlot || s.room.trim() !== room.trim()) return false;
+                const isCancelled = activeCancellations.some(
+                  c => c.groupId === s.groupId && c.day === s.day && c.time === s.time
+                );
+                return !isCancelled;
+              });
+              const makeupSession = activeMakeups.find(
                 m => m.day === inspectorDay && 
                   (m.timeSlots ? m.timeSlots.includes(inspectorSlot) : (m.time === inspectorSlot || m.time.includes(inspectorSlot))) && 
                   m.room.trim() === room.trim()
