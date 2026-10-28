@@ -19,7 +19,9 @@ import {
   FREE_STUDY_ROOMS,
   getCambodiaTime, 
   getCurrentOrClosestSlot, 
-  parseSlotMinutes 
+  parseSlotMinutes,
+  isConfirmedRoom,
+  isSharedRoom
 } from '../data/scheduleData';
 import { 
   isBookingInCurrentWeek, 
@@ -116,12 +118,16 @@ export function FreeStudyRoomModal({
       }
 
       const isBuildingA = room.includes('A-');
+      const isConfirmedA = isConfirmedRoom(room);
+      const isShared = isSharedRoom(room);
       const building = isBuildingA ? 'A' : 'J';
 
       return {
         room,
         building,
         isBuildingA,
+        isConfirmedA,
+        isShared,
         isFree,
         currentSession: currentSession || (currentMakeup ? {
           day: currentMakeup.day,
@@ -150,7 +156,7 @@ export function FreeStudyRoomModal({
   });
 
   const freeCount = roomStatuses.filter(r => r.isFree).length;
-  const confirmedBldgAFreeCount = roomStatuses.filter(r => r.isFree && r.isBuildingA).length;
+  const confirmedBldgAFreeCount = roomStatuses.filter(r => r.isFree && r.isConfirmedA).length;
 
   if (!isOpen) return null;
 
@@ -286,7 +292,7 @@ export function FreeStudyRoomModal({
                     : 'bg-slate-800 text-slate-400 hover:text-white'
                 }`}
               >
-                Building A (Confirmed)
+                Building A
               </button>
               <button
                 onClick={() => setBuildingFilter('J')}
@@ -324,7 +330,7 @@ export function FreeStudyRoomModal({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {filteredRooms.map((item) => {
-                const isConfirmedA = item.isBuildingA;
+                const isConfirmedA = item.isConfirmedA;
 
                 return (
                   <div
@@ -351,7 +357,7 @@ export function FreeStudyRoomModal({
                             {item.room}
                           </h4>
                           <span className="text-[11px] text-slate-400 font-mono">
-                            {isConfirmedA ? 'Building A' : 'Building J · Shared Lab'}
+                            {isConfirmedA ? 'Building A' : item.isBuildingA ? 'Building A (3rd Fl) · Shared Room' : 'Building J · Shared Lab'}
                           </span>
                         </div>
                       </div>
@@ -404,7 +410,7 @@ export function FreeStudyRoomModal({
         {/* Modal Footer */}
         <div className="p-3 sm:p-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400 shrink-0">
           <div className="text-[11px]">
-            Note: Building J labs are shared across departments; availability is unconfirmed.
+            Note: Building A 3rd floor rooms (A-3xx) and Building J labs are shared across departments; availability is unconfirmed.
           </div>
           <button
             onClick={onClose}

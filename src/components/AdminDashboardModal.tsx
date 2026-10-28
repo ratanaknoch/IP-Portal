@@ -13,19 +13,25 @@ import {
   Search,
   Filter,
   UserPlus,
-  Radio
+  Radio,
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 import { 
   UserProfile, 
   UserRole, 
   AppNotification, 
-  subscribeToAllUsers, 
+  fetchUsersPaginated,
+  getTotalUsersCount,
   saveUserProfile, 
   deleteUserProfile, 
   createNotification,
   subscribeToNotifications,
   deleteNotificationGlobally,
-  deleteAllNotificationsAcrossAllUsers
+  deleteAllNotificationsAcrossAllUsers,
+  QueryDocumentSnapshot
 } from '../lib/firebase';
 import { SCHEDULE_DATA } from '../data/scheduleData';
 
@@ -45,6 +51,13 @@ export function AdminDashboardModal({
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'student' | 'monitor' | 'admin'>('ALL');
+
+  // Pagination State for Users
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [hasMore, setHasMore] = useState<boolean>(false);
+  const [isLoadingUsers, setIsLoadingUsers] = useState<boolean>(false);
+  const [totalUsersCount, setTotalUsersCount] = useState<number>(0);
+  const [pageCursors, setPageCursors] = useState<(QueryDocumentSnapshot | null)[]>([null]);
 
   // Announcement Form State
   const [notifTitle, setNotifTitle] = useState('');
@@ -67,23 +80,69 @@ export function AdminDashboardModal({
   // Editing User
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
 
-  // Real-time subscriptions
+  // User pagination fetcher
+  const loadPage = async (pageIndex: number, currentCursors: (QueryDocumentSnapshot | null)[] = pageCursors) => {
+    setIsLoadingUsers(true);
+    try {
+      const cursor = currentCursors[pageIndex - 1] || null;
+      const res = await fetchUsersPaginated(20, cursor);
+      setUsers(res.users);
+      setHasMore(res.hasMore);
+      setCurrentPage(pageIndex);
+
+      if (res.lastDoc) {
+        setPageCursors(prev => {
+          const next = [...prev];
+          next[pageIndex] = res.lastDoc;
+          return next;
+        });
+      }
+    } catch (err) {
+      console.error('Failed to load user page:', err);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  // Subscriptions & initial page load
   useEffect(() => {
     if (!isOpen) return;
 
-    const unsubUsers = subscribeToAllUsers((remoteUsers) => {
-      setUsers(remoteUsers);
+    // Fetch aggregate count once (costs only 1 read)
+    getTotalUsersCount().then((count) => {
+      setTotalUsersCount(count);
     });
 
+    // Reset pagination and load Page 1 (costs only 20 reads)
+    setPageCursors([null]);
+    loadPage(1, [null]);
+
+    // Notifications subscription bounded to 20
     const unsubNotifs = subscribeToNotifications('admin', (remoteNotifs) => {
       setNotifications(remoteNotifs);
     });
 
     return () => {
-      unsubUsers();
       unsubNotifs();
     };
   }, [isOpen]);
+
+  const handleNextPage = () => {
+    if (hasMore && !isLoadingUsers) {
+      loadPage(currentPage + 1);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (currentPage > 1 && !isLoadingUsers) {
+      loadPage(currentPage - 1);
+    }
+  };
+
+  const handleRefreshCurrentPage = () => {
+    loadPage(currentPage);
+    getTotalUsersCount().then((count) => setTotalUsersCount(count));
+  };
 
   if (!isOpen) return null;
 
@@ -104,12 +163,14 @@ export function AdminDashboardModal({
 
   const handleRoleChange = async (targetUser: UserProfile, newRole: UserRole) => {
     try {
+      setUsers(prev => prev.map(u => u.uid === targetUser.uid ? { ...u, role: newRole } : u));
       await saveUserProfile({
         ...targetUser,
         role: newRole
       });
     } catch (err) {
       console.error('Failed to change user role:', err);
+      loadPage(currentPage);
     }
   };
 
@@ -118,9 +179,12 @@ export function AdminDashboardModal({
       return;
     }
     try {
+      setUsers(prev => prev.filter(u => u.uid !== uid));
+      setTotalUsersCount(prev => Math.max(0, prev - 1));
       await deleteUserProfile(uid);
     } catch (err) {
       console.error('Failed to delete user:', err);
+      loadPage(currentPage);
     }
   };
 
@@ -184,18 +248,20 @@ export function AdminDashboardModal({
     }
 
     const customUid = `user_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    const newUser: UserProfile = {
+      uid: customUid,
+      email: newUserEmail.trim().toLowerCase(),
+      displayName: newUserName.trim(),
+      role: newUserRole,
+      year: newUserYear,
+      groupId: newUserGroup,
+      onboardingCompleted: true,
+      createdAt: new Date().toISOString()
+    };
     try {
-      await saveUserProfile({
-        uid: customUid,
-        email: newUserEmail.trim().toLowerCase(),
-        displayName: newUserName.trim(),
-        role: newUserRole,
-        year: newUserYear,
-        groupId: newUserGroup,
-        onboardingCompleted: true,
-        createdAt: new Date().toISOString()
-      });
-
+      await saveUserProfile(newUser);
+      setUsers(prev => [newUser, ...prev.slice(0, 19)]);
+      setTotalUsersCount(prev => prev + 1);
       setShowAddUserModal(false);
       setNewUserName('');
       setNewUserEmail('');
@@ -250,7 +316,7 @@ export function AdminDashboardModal({
               }`}
             >
               <Users className="w-3.5 h-3.5" />
-              <span>User Management ({users.length})</span>
+              <span>User Management ({totalUsersCount || users.length})</span>
             </button>
 
             <button
@@ -328,7 +394,16 @@ export function AdminDashboardModal({
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
-                      {filteredUsers.length === 0 ? (
+                      {isLoadingUsers ? (
+                        <tr>
+                          <td colSpan={5} className="text-center py-10 text-slate-400 text-xs">
+                            <div className="flex items-center justify-center gap-2">
+                              <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                              <span>Loading users from database...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : filteredUsers.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="text-center py-8 text-slate-400 text-xs">
                             No users found matching your criteria.
@@ -383,6 +458,58 @@ export function AdminDashboardModal({
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="px-4 py-3 bg-slate-900/90 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+                  <div className="flex items-center gap-2">
+                    <span>
+                      Page <span className="font-mono font-bold text-white tabular-nums">{currentPage}</span>
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>
+                      Total registered: <span className="font-mono font-bold text-amber-300 tabular-nums">{totalUsersCount || users.length}</span>
+                    </span>
+                    <span className="text-[10px] text-emerald-400 font-medium bg-emerald-950/60 border border-emerald-800/80 px-2 py-0.5 rounded">
+                      20 users/page
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleRefreshCurrentPage}
+                      disabled={isLoadingUsers}
+                      title="Refresh current page"
+                      className="p-1.5 rounded bg-slate-950 border border-slate-800 text-slate-400 hover:text-white disabled:opacity-50 transition-colors cursor-pointer"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isLoadingUsers ? 'animate-spin text-amber-400' : ''}`} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handlePrevPage}
+                      disabled={currentPage === 1 || isLoadingUsers}
+                      className="px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-1 cursor-pointer"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Prev</span>
+                    </button>
+
+                    <span className="px-2 py-1 font-mono text-xs text-slate-300 tabular-nums">
+                      {currentPage}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={handleNextPage}
+                      disabled={!hasMore || isLoadingUsers}
+                      className="px-3 py-1.5 rounded bg-slate-950 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Next</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

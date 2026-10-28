@@ -10,7 +10,9 @@ import {
   getSlotLiveStatus,
   getCurrentOrClosestSlot,
   matchSlotFromInput,
-  getSessionTypeStyle
+  getSessionTypeStyle,
+  isSharedRoom,
+  isConfirmedRoom
 } from '../data/scheduleData';
 import { 
   CheckCircle2, 
@@ -26,13 +28,17 @@ import {
   XCircle,
   ArrowRight,
   Plus,
-  AlertTriangle
+  AlertTriangle,
+  CalendarDays
 } from 'lucide-react';
 import { 
+  isBookingInTargetWeek, 
+  isCancellationInTargetWeek,
   isBookingInCurrentWeek, 
   isCancellationInCurrentWeek,
   MakeupClassBooking, 
-  CancelledClassSession 
+  CancelledClassSession,
+  getActiveWeekBounds
 } from './MakeupClassBookingModal';
 
 interface RoomViewProps {
@@ -43,6 +49,8 @@ interface RoomViewProps {
   onOpenFreeRooms?: () => void;
   makeupBookings?: MakeupClassBooking[];
   cancelledClasses?: CancelledClassSession[];
+  weekOffset?: 0 | 1;
+  onSelectWeekOffset?: (offset: 0 | 1) => void;
 }
 
 export function RoomView({
@@ -52,9 +60,21 @@ export function RoomView({
   onOpenBookingModal,
   onOpenFreeRooms,
   makeupBookings = [],
-  cancelledClasses = []
+  cancelledClasses = [],
+  weekOffset,
+  onSelectWeekOffset
 }: RoomViewProps) {
+  const [localWeekOffset, setLocalWeekOffset] = useState<0 | 1>(0);
+  const currentWeekOffset = weekOffset !== undefined ? weekOffset : localWeekOffset;
+  const handleWeekChange = (offset: 0 | 1) => {
+    if (onSelectWeekOffset) onSelectWeekOffset(offset);
+    setLocalWeekOffset(offset);
+  };
+
   const cambodiaTime = getCambodiaTime();
+  const weekBounds = getActiveWeekBounds(currentWeekOffset);
+  const thisWeekBounds = getActiveWeekBounds(0);
+  const nextWeekBounds = getActiveWeekBounds(1);
   const days = SCHEDULE_DATA.meta.days;
   const timeSlots = SCHEDULE_DATA.meta.timeSlots;
 
@@ -76,13 +96,13 @@ export function RoomView({
   const [inspectorTimeQuery, setInspectorTimeQuery] = useState<string>('');
 
   const activeMakeups = useMemo(
-    () => makeupBookings.filter(m => isBookingInCurrentWeek(m)),
-    [makeupBookings]
+    () => makeupBookings.filter(m => isBookingInTargetWeek(m, currentWeekOffset)),
+    [makeupBookings, currentWeekOffset]
   );
 
   const activeCancellations = useMemo(
-    () => cancelledClasses.filter(c => isCancellationInCurrentWeek(c)),
-    [cancelledClasses]
+    () => cancelledClasses.filter(c => isCancellationInTargetWeek(c, currentWeekOffset)),
+    [cancelledClasses, currentWeekOffset]
   );
 
   // Shorten room name for high-density matrix display (e.g. "Room A-109" -> "A-109")
@@ -150,29 +170,59 @@ export function RoomView({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           
           {/* Sub-view switcher */}
-          <div className="flex items-center gap-1 p-1 bg-slate-800 rounded-md">
-            <button
-              onClick={() => setViewMode('weekly-matrix')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-                viewMode === 'weekly-matrix'
-                  ? 'bg-slate-700 text-slate-100 shadow-xs'
-                  : 'text-slate-400 hover:text-slate-100'
-              }`}
-            >
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <span>Full Week Available Rooms</span>
-            </button>
-            <button
-              onClick={() => setViewMode('today-inspector')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 ${
-                viewMode === 'today-inspector'
-                  ? 'bg-slate-700 text-slate-100 shadow-xs'
-                  : 'text-slate-400 hover:text-slate-100'
-              }`}
-            >
-              <Clock className="w-3.5 h-3.5 text-slate-400" />
-              <span>Hour Availability Inspector</span>
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 p-1 bg-slate-800 rounded-md">
+              <button
+                onClick={() => setViewMode('weekly-matrix')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'weekly-matrix'
+                    ? 'bg-slate-700 text-slate-100 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-100'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                <span>Full Week Available Rooms</span>
+              </button>
+              <button
+                onClick={() => setViewMode('today-inspector')}
+                className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                  viewMode === 'today-inspector'
+                    ? 'bg-slate-700 text-slate-100 shadow-xs'
+                    : 'text-slate-400 hover:text-slate-100'
+                }`}
+              >
+                <Clock className="w-3.5 h-3.5 text-slate-400" />
+                <span>Hour Availability Inspector</span>
+              </button>
+            </div>
+
+            {/* Academic Week Segmented Selector */}
+            <div className="flex items-center gap-1 p-1 bg-slate-800 rounded-md">
+              <button
+                type="button"
+                onClick={() => handleWeekChange(0)}
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                  currentWeekOffset === 0
+                    ? 'bg-sky-600 text-white shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-slate-100'
+                }`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                <span>This Week</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleWeekChange(1)}
+                className={`px-2.5 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                  currentWeekOffset === 1
+                    ? 'bg-sky-600 text-white shadow-xs font-bold'
+                    : 'text-slate-400 hover:text-slate-100'
+                }`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                <span>Next Week</span>
+              </button>
+            </div>
           </div>
 
           {/* Action buttons & Venue counts */}
@@ -206,6 +256,25 @@ export function RoomView({
 
         </div>
 
+        {/* Next Week Alert Banner */}
+        {currentWeekOffset === 1 && (
+          <div className="p-3 rounded-lg bg-sky-950/70 border border-sky-800 text-xs text-sky-200 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-sky-400 shrink-0" />
+              <span>
+                <strong>Viewing Next Week Room Occupancies & Free Study Rooms ({nextWeekBounds.formattedWeekRange}).</strong> Any make-up classes booked for next week are reflected in room availability.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleWeekChange(0)}
+              className="px-2.5 py-1 rounded bg-sky-900 hover:bg-sky-800 text-sky-100 font-bold text-xs cursor-pointer transition-colors"
+            >
+              Switch to This Week
+            </button>
+          </div>
+        )}
+
         {/* Filters Toolbar for Weekly Matrix */}
         {viewMode === 'weekly-matrix' && (
           <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
@@ -229,7 +298,7 @@ export function RoomView({
                           : 'text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white'
                       }`}
                     >
-                      {b === 'all' ? 'All Buildings' : b === 'A' ? 'Building A (Confirmed)' : 'Building J (Shared)'}
+                      {b === 'all' ? 'All Buildings' : b === 'A' ? 'Building A' : 'Building J (Shared)'}
                     </button>
                   ))}
                 </div>
@@ -269,7 +338,12 @@ export function RoomView({
                 >
                   <option value="ALL">None (Show All Available)</option>
                   <optgroup label="Building A (Confirmed IP Classrooms)">
-                    {FREE_STUDY_ROOMS.filter(r => r.includes('A-')).map(r => (
+                    {FREE_STUDY_ROOMS.filter(r => isConfirmedRoom(r)).map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="Building A 3rd Floor (Shared Classrooms)">
+                    {FREE_STUDY_ROOMS.filter(r => r.includes('A-') && isSharedRoom(r)).map(r => (
                       <option key={r} value={r}>{r}</option>
                     ))}
                   </optgroup>
@@ -430,20 +504,23 @@ export function RoomView({
                                       {availableRooms.map((room) => {
                                         const isSpotlighted = spotlightRoom !== 'ALL' && spotlightRoom === room;
                                         const isBuildingJ = room.includes('J-');
+                                        const isShared = isSharedRoom(room);
 
                                         return (
                                           <button
                                             key={room}
                                             onClick={() => onSelectRoom(room)}
                                             title={
-                                              isBuildingJ 
-                                                ? `${room} (Building J Computer Lab - Unconfirmed Availability)` 
+                                              isShared
+                                                ? isBuildingJ
+                                                  ? `${room} (Building J Computer Lab - Shared / Unconfirmed Availability)`
+                                                  : `${room} (Building A 3rd Floor - Shared Room / Unconfirmed Availability)`
                                                 : `${room} (Building A - Confirmed IP Classroom Available)`
                                             }
                                             className={`w-full px-1 py-1 rounded font-mono text-[10px] sm:text-[11px] font-semibold transition-all text-center border truncate cursor-pointer ${
                                               isSpotlighted
                                                 ? 'bg-sky-500 text-slate-950 font-bold ring-2 ring-sky-300 shadow-xs'
-                                                : isBuildingJ
+                                                : isShared
                                                 ? 'bg-slate-900/90 text-slate-400 border-slate-750 hover:border-slate-500 hover:text-slate-200'
                                                 : 'bg-emerald-950/50 text-emerald-300 border-emerald-800/80 hover:border-emerald-500 hover:bg-emerald-900/40'
                                             }`}
@@ -489,15 +566,15 @@ export function RoomView({
                 </span>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-emerald-950 border border-emerald-500"></span>
-                  <span className="text-emerald-300 font-medium">Building A (Confirmed Available: A-109, A-309, A-311, A-312, A-401, A-402, A-417, A-420)</span>
+                  <span className="text-emerald-300 font-medium">Confirmed Available (Building A: A-109, A-401, A-402, A-417, A-420)</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-slate-850 border border-slate-700"></span>
-                  <span className="text-slate-400">Building J (Shared Computer Labs - Unconfirmed by IP)</span>
+                  <span className="text-slate-400">Shared Rooms (Building A 3rd Floor: A-309, A-311, A-312 & Building J Labs - Unconfirmed)</span>
                 </div>
               </div>
               <div className="text-[11px] text-slate-400">
-                IP program has full control over Building A classrooms.
+                3rd-floor Building A rooms & Building J labs are shared venues.
               </div>
             </div>
 
@@ -608,28 +685,29 @@ export function RoomView({
 
               const isAvailable = !occupiedSession && !makeupSession;
               const isBldgJ = room.includes('J-');
+              const isShared = isSharedRoom(room);
 
               if (isAvailable) {
                 return (
                   <div
                     key={room}
                     className={`border rounded-xl p-4.5 shadow-xs space-y-2.5 ${
-                      isBldgJ 
+                      isShared 
                         ? 'bg-slate-900 border-slate-800' 
                         : 'bg-emerald-950/20 border-emerald-800/80'
                     }`}
                   >
                     <div className="flex items-center justify-between">
                       <span className={`px-2.5 py-1 text-xs font-bold uppercase rounded-md flex items-center gap-1.5 ${
-                        isBldgJ 
+                        isShared 
                           ? 'bg-slate-800 text-slate-300 border border-slate-700' 
                           : 'bg-emerald-950 text-emerald-300 border border-emerald-700'
                       }`}>
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                        {isBldgJ ? 'Shared Lab' : 'Confirmed Free'}
+                        {isShared ? (isBldgJ ? 'Shared Lab' : 'Shared Room') : 'Confirmed Free'}
                       </span>
                       <span className="text-xs font-mono text-slate-400">
-                        {isBldgJ ? 'Building J' : 'Building A'}
+                        {isBldgJ ? 'Building J' : isShared ? 'Building A (3rd Fl)' : 'Building A'}
                       </span>
                     </div>
 
@@ -637,7 +715,7 @@ export function RoomView({
                       {room}
                     </h3>
                     <p className="text-sm text-slate-300">
-                      {isBldgJ ? 'Computer Laboratory' : 'Classroom'} · Free at {inspectorSlot}
+                      {isBldgJ ? 'Computer Laboratory' : isShared ? 'Shared Classroom' : 'Classroom'} · Free at {inspectorSlot}
                     </p>
                   </div>
                 );

@@ -423,18 +423,48 @@ export const ALL_LECTURERS = Array.from(
   new Set(ALL_SESSIONS.map(s => s.lecturer).filter(Boolean))
 ).sort((a, b) => a.localeCompare(b));
 
-// All unique Rooms sorted (excluding empty/unassigned rooms)
+// Helper: check if a room is on the 3rd floor of Building A (starts with 3, e.g., A-309, A-311, A-312)
+export function isThirdFloorRoom(room: string): boolean {
+  return /A-3\d{2}/i.test(room);
+}
+
+// Helper: check if a room is a shared room with unconfirmed availability (Building J or 3rd floor Building A rooms)
+export function isSharedRoom(room: string): boolean {
+  return room.includes('J-') || isThirdFloorRoom(room);
+}
+
+// Helper: check if a room is a confirmed IP classroom (Building A excluding 3rd floor shared rooms)
+export function isConfirmedRoom(room: string): boolean {
+  return room.includes('A-') && !isThirdFloorRoom(room);
+}
+
+// Comparator that places Confirmed IP Classrooms (green) on top, followed by Shared rooms
+export function compareRoomsByStatus(a: string, b: string): number {
+  const rank = (r: string) => {
+    if (isConfirmedRoom(r)) return 0; // Confirmed Building A rooms on top
+    if (isThirdFloorRoom(r)) return 1; // Shared Building A 3rd floor next
+    if (r.includes('J-')) return 2; // Shared Building J labs next
+    return 3;
+  };
+  const rankDiff = rank(a) - rank(b);
+  if (rankDiff !== 0) return rankDiff;
+  return a.localeCompare(b, undefined, { numeric: true });
+}
+
+// All unique Rooms sorted with Confirmed IP classrooms first (excluding empty/unassigned rooms)
 export const ALL_ROOMS = Array.from(
   new Set(ALL_SESSIONS.map(s => s.room.trim()).filter(Boolean))
-).sort((a, b) => a.localeCompare(b));
+).sort(compareRoomsByStatus);
 
 // Only rooms that exist in the I1 to I4 schedule, strictly Building A and Building J
 export const BOOKABLE_ROOMS = ALL_ROOMS.filter(r => r.includes('A-') || r.includes('J-')).sort(
-  (a, b) => a.localeCompare(b, undefined, { numeric: true })
+  compareRoomsByStatus
 );
 
 // General study rooms available for student free room view (Building A and Building J only, excludes specialized labs like F-205)
-export const FREE_STUDY_ROOMS = ALL_ROOMS.filter(r => (r.includes('A-') || r.includes('J-')) && !r.includes('F-'));
+export const FREE_STUDY_ROOMS = ALL_ROOMS.filter(
+  r => (r.includes('A-') || r.includes('J-')) && !r.includes('F-')
+).sort(compareRoomsByStatus);
 
 // Parse time slot to [startMinutes, endMinutes]
 export function parseSlotMinutes(slot: string): [number, number] {

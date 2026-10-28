@@ -1,6 +1,9 @@
 import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, 
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   collection, 
   doc, 
   setDoc, 
@@ -10,8 +13,16 @@ import {
   onSnapshot, 
   getDocFromServer,
   updateDoc,
-  arrayUnion
+  arrayUnion,
+  query,
+  orderBy,
+  limit,
+  startAfter,
+  getCountFromServer,
+  QueryDocumentSnapshot
 } from 'firebase/firestore';
+
+export type { QueryDocumentSnapshot };
 import { 
   getAuth, 
   GoogleAuthProvider, 
@@ -37,14 +48,31 @@ const activeFirebaseConfig = {
 // Initialize Firebase App
 const app = initializeApp(activeFirebaseConfig);
 
-// Initialize Auth & Firestore with explicit database ID
+// Initialize Auth & Firestore with multi-tab persistent IndexedDB caching
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-export const db = activeFirebaseConfig.firestoreDatabaseId
-  ? getFirestore(app, activeFirebaseConfig.firestoreDatabaseId)
-  : getFirestore(app);
+function initFirestoreWithPersistentCache() {
+  const dbId = activeFirebaseConfig.firestoreDatabaseId;
+  try {
+    if (typeof window !== 'undefined' && 'indexedDB' in window) {
+      const cacheSettings = {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager()
+        })
+      };
+      return dbId 
+        ? initializeFirestore(app, cacheSettings, dbId)
+        : initializeFirestore(app, cacheSettings);
+    }
+  } catch (err) {
+    console.warn('Persistent IndexedDB cache fallback to standard firestore instance:', err);
+  }
+  return dbId ? getFirestore(app, dbId) : getFirestore(app);
+}
+
+export const db = initFirestoreWithPersistentCache();
 
 // User Profile Types
 export type UserRole = 'student' | 'monitor' | 'admin';
@@ -252,14 +280,92 @@ export async function deleteUserProfile(uid: string): Promise<void> {
   }
 }
 
+export interface UsersPageResult {
+  users: UserProfile[];
+  firstDoc: QueryDocumentSnapshot | null;
+  lastDoc: QueryDocumentSnapshot | null;
+  hasMore: boolean;
+}
+
+export async function fetchUsersPaginated(
+  pageSize: number = 20,
+  cursor: QueryDocumentSnapshot | null = null
+): Promise<UsersPageResult> {
+  const collectionPath = 'users';
+  try {
+    const q = cursor
+      ? query(
+          collection(db, collectionPath),
+          orderBy('createdAt', 'desc'),
+          startAfter(cursor),
+          limit(pageSize)
+        )
+      : query(
+          collection(db, collectionPath),
+          orderBy('createdAt', 'desc'),
+          limit(pageSize)
+        );
+
+    const snap = await getDocs(q);
+    const users: UserProfile[] = [];
+    snap.forEach((d) => {
+      users.push(d.data() as UserProfile);
+    });
+
+    return {
+      users,
+      firstDoc: snap.docs.length > 0 ? snap.docs[0] : null,
+      lastDoc: snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null,
+      hasMore: snap.docs.length === pageSize
+    };
+  } catch (err) {
+    console.warn('Error fetching paginated users with order, fallback to limit:', err);
+    try {
+      const fallbackQ = cursor
+        ? query(collection(db, collectionPath), startAfter(cursor), limit(pageSize))
+        : query(collection(db, collectionPath), limit(pageSize));
+      const snap = await getDocs(fallbackQ);
+      const users: UserProfile[] = [];
+      snap.forEach((d) => {
+        users.push(d.data() as UserProfile);
+      });
+      return {
+        users,
+        firstDoc: snap.docs[0] || null,
+        lastDoc: snap.docs[snap.docs.length - 1] || null,
+        hasMore: snap.docs.length === pageSize
+      };
+    } catch (fbErr) {
+      console.error('Failed to fetch paginated users:', fbErr);
+      return { users: [], firstDoc: null, lastDoc: null, hasMore: false };
+    }
+  }
+}
+
+export async function getTotalUsersCount(): Promise<number> {
+  try {
+    const snap = await getCountFromServer(collection(db, 'users'));
+    return snap.data().count;
+  } catch (err) {
+    console.warn('Could not retrieve aggregate user count:', err);
+    return 0;
+  }
+}
+
 export function subscribeToAllUsers(
   onUpdate: (users: UserProfile[]) => void,
-  onFailed?: (error: Error) => void
+  onFailed?: (error: Error) => void,
+  maxItems: number = 20
 ): () => void {
   const collectionPath = 'users';
   try {
-    const unsub = onSnapshot(
+    const q = query(
       collection(db, collectionPath),
+      orderBy('createdAt', 'desc'),
+      limit(maxItems)
+    );
+    const unsub = onSnapshot(
+      q,
       (snapshot) => {
         const users: UserProfile[] = [];
         snapshot.forEach((d) => {
@@ -269,8 +375,19 @@ export function subscribeToAllUsers(
         onUpdate(users);
       },
       (error) => {
-        console.warn('Error subscribing to users:', error);
-        if (onFailed) onFailed(error);
+        console.warn('Error subscribing to users with limit query:', error);
+        try {
+          const fallbackQ = query(collection(db, collectionPath), limit(maxItems));
+          return onSnapshot(fallbackQ, (snapshot) => {
+            const users: UserProfile[] = [];
+            snapshot.forEach((d) => {
+              users.push(d.data() as UserProfile);
+            });
+            onUpdate(users);
+          });
+        } catch {
+          if (onFailed) onFailed(error);
+        }
       }
     );
     return unsub;
@@ -363,12 +480,18 @@ export async function deleteAllNotificationsAcrossAllUsers(): Promise<void> {
 export function subscribeToNotifications(
   userRole: UserRole,
   onUpdate: (notifications: AppNotification[]) => void,
-  onFailed?: (error: Error) => void
+  onFailed?: (error: Error) => void,
+  maxItems: number = 20
 ): () => void {
   const collectionPath = 'notifications';
   try {
-    const unsub = onSnapshot(
+    const q = query(
       collection(db, collectionPath),
+      orderBy('createdAt', 'desc'),
+      limit(maxItems)
+    );
+    const unsub = onSnapshot(
+      q,
       (snapshot) => {
         const list: AppNotification[] = [];
         snapshot.forEach((d) => {
@@ -398,8 +521,21 @@ export function subscribeToNotifications(
         onUpdate(list);
       },
       (error) => {
-        console.warn('Error syncing notifications:', error);
-        if (onFailed) onFailed(error);
+        console.warn('Error syncing notifications with order limit, fallback:', error);
+        try {
+          const fallbackQ = query(collection(db, collectionPath), limit(maxItems));
+          return onSnapshot(fallbackQ, (snapshot) => {
+            const list: AppNotification[] = [];
+            snapshot.forEach((d) => {
+              const data = d.data();
+              list.push({ ...data, id: d.id } as AppNotification);
+            });
+            list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+            onUpdate(list);
+          });
+        } catch {
+          if (onFailed) onFailed(error);
+        }
       }
     );
     return unsub;
@@ -415,13 +551,19 @@ export function subscribeToNotifications(
 
 export function subscribeToMakeupBookings(
   onUpdate: (bookings: MakeupClassBooking[]) => void,
-  onFailed?: (error: Error) => void
+  onFailed?: (error: Error) => void,
+  maxItems: number = 20
 ): () => void {
   const collectionPath = 'makeupBookings';
   
   try {
-    const unsub = onSnapshot(
+    const q = query(
       collection(db, collectionPath),
+      orderBy('createdAt', 'desc'),
+      limit(maxItems)
+    );
+    const unsub = onSnapshot(
+      q,
       (snapshot) => {
         const bookings: MakeupClassBooking[] = [];
         snapshot.forEach((d) => {
@@ -449,14 +591,19 @@ export function subscribeToMakeupBookings(
         onUpdate(bookings);
       },
       (error) => {
-        console.warn('Real-time sync error, falling back to local cache:', error.message);
-        if (onFailed) {
-          onFailed(error);
-        }
+        console.warn('Real-time sync error with order query, falling back to basic limit:', error.message);
         try {
-          handleFirestoreError(error, OperationType.LIST, collectionPath);
+          const fallbackQ = query(collection(db, collectionPath), limit(maxItems));
+          return onSnapshot(fallbackQ, (snapshot) => {
+            const bookings: MakeupClassBooking[] = [];
+            snapshot.forEach((d) => {
+              bookings.push({ ...d.data(), id: d.id } as MakeupClassBooking);
+            });
+            bookings.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+            onUpdate(bookings);
+          });
         } catch {
-          // Handled for logging
+          if (onFailed) onFailed(error);
         }
       }
     );
@@ -526,13 +673,19 @@ export async function deleteMakeupBooking(id: string): Promise<void> {
 
 export function subscribeToCancelledClasses(
   onUpdate: (items: CancelledClassSession[]) => void,
-  onFailed?: (error: Error) => void
+  onFailed?: (error: Error) => void,
+  maxItems: number = 20
 ): () => void {
   const collectionPath = 'cancelledClasses';
 
   try {
-    const unsub = onSnapshot(
+    const q = query(
       collection(db, collectionPath),
+      orderBy('createdAt', 'desc'),
+      limit(maxItems)
+    );
+    const unsub = onSnapshot(
+      q,
       (snapshot) => {
         const items: CancelledClassSession[] = [];
         snapshot.forEach((d) => {
@@ -560,8 +713,20 @@ export function subscribeToCancelledClasses(
         onUpdate(items);
       },
       (error) => {
-        console.warn('Error syncing cancelled classes, falling back to local cache:', error.message);
-        if (onFailed) onFailed(error);
+        console.warn('Error syncing cancelled classes with query limit, falling back:', error.message);
+        try {
+          const fallbackQ = query(collection(db, collectionPath), limit(maxItems));
+          return onSnapshot(fallbackQ, (snapshot) => {
+            const items: CancelledClassSession[] = [];
+            snapshot.forEach((d) => {
+              items.push({ ...d.data(), id: d.id } as CancelledClassSession);
+            });
+            items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+            onUpdate(items);
+          });
+        } catch {
+          if (onFailed) onFailed(error);
+        }
       }
     );
     return unsub;

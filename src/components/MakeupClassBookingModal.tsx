@@ -17,7 +17,7 @@ import {
   ChevronUp,
   Lock
 } from 'lucide-react';
-import { SCHEDULE_DATA, BOOKABLE_ROOMS, ALL_SESSIONS, parseSlotMinutes, SessionType } from '../data/scheduleData';
+import { SCHEDULE_DATA, BOOKABLE_ROOMS, ALL_SESSIONS, parseSlotMinutes, SessionType, isSharedRoom } from '../data/scheduleData';
 import { UserProfile } from '../lib/firebase';
 
 export type ScheduleDay = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
@@ -79,10 +79,11 @@ function formatYMD(d: Date): string {
 
 /**
  * Computes the active Monday–Saturday academic week in Cambodia Time (UTC+7).
+ * Supports weekOffset (0 = This/Current Week, 1 = Next Week).
  * Every Sunday (day 0), the previous week's make-up classes and cancelled classes
  * expire and reset to the normal schedule for the new week starting Monday.
  */
-export function getActiveWeekBounds(): {
+export function getActiveWeekBounds(weekOffset: number = 0): {
   weekStartMonday: string;
   weekEndSaturday: string;
   nextSundayReset: string;
@@ -90,6 +91,7 @@ export function getActiveWeekBounds(): {
   isSundayToday: boolean;
   dayDatesMap: Record<ScheduleDay, string>;
   formattedWeekRange: string;
+  weekLabel: string;
 } {
   const now = new Date();
   const utc = now.getTime() + now.getTimezoneOffset() * 60000;
@@ -102,9 +104,9 @@ export function getActiveWeekBounds(): {
   const mondayDate = new Date(kh.getFullYear(), kh.getMonth(), kh.getDate());
   if (isSundayToday) {
     // On Sunday, the finished week resets and the active schedule window is the upcoming Mon–Sat week
-    mondayDate.setDate(mondayDate.getDate() + 1);
+    mondayDate.setDate(mondayDate.getDate() + 1 + (weekOffset * 7));
   } else {
-    mondayDate.setDate(mondayDate.getDate() - (dayOfWeek - 1));
+    mondayDate.setDate(mondayDate.getDate() - (dayOfWeek - 1) + (weekOffset * 7));
   }
 
   const saturdayDate = new Date(mondayDate);
@@ -123,6 +125,9 @@ export function getActiveWeekBounds(): {
 
   const fmtOptions: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
   const formattedWeekRange = `${mondayDate.toLocaleDateString('en-US', fmtOptions)} – ${saturdayDate.toLocaleDateString('en-US', { ...fmtOptions, year: 'numeric' })}`;
+  const weekLabel = weekOffset === 0 
+    ? (isSundayToday ? 'Current Week' : 'This Week') 
+    : (weekOffset === 1 ? 'Next Week' : `Week +${weekOffset}`);
 
   return {
     weekStartMonday: formatYMD(mondayDate),
@@ -131,7 +136,8 @@ export function getActiveWeekBounds(): {
     rawToday,
     isSundayToday,
     dayDatesMap,
-    formattedWeekRange
+    formattedWeekRange,
+    weekLabel
   };
 }
 
@@ -141,14 +147,18 @@ export function getActiveWeekBounds(): {
  */
 export function isBookingExpired(booking: MakeupClassBooking): boolean {
   if (!booking || !booking.date) return false;
-  const { weekStartMonday } = getActiveWeekBounds();
+  const { weekStartMonday } = getActiveWeekBounds(0);
   return booking.date < weekStartMonday;
 }
 
-export function isBookingInCurrentWeek(booking: MakeupClassBooking): boolean {
+export function isBookingInTargetWeek(booking: MakeupClassBooking, weekOffset: number = 0): boolean {
   if (!booking || !booking.date) return false;
-  const { weekStartMonday, weekEndSaturday } = getActiveWeekBounds();
+  const { weekStartMonday, weekEndSaturday } = getActiveWeekBounds(weekOffset);
   return booking.date >= weekStartMonday && booking.date <= weekEndSaturday;
+}
+
+export function isBookingInCurrentWeek(booking: MakeupClassBooking): boolean {
+  return isBookingInTargetWeek(booking, 0);
 }
 
 /**
@@ -157,14 +167,18 @@ export function isBookingInCurrentWeek(booking: MakeupClassBooking): boolean {
  */
 export function isCancellationExpired(item: CancelledClassSession): boolean {
   if (!item || !item.date) return false;
-  const { weekStartMonday } = getActiveWeekBounds();
+  const { weekStartMonday } = getActiveWeekBounds(0);
   return item.date < weekStartMonday;
 }
 
-export function isCancellationInCurrentWeek(item: CancelledClassSession): boolean {
+export function isCancellationInTargetWeek(item: CancelledClassSession, weekOffset: number = 0): boolean {
   if (!item || !item.date) return false;
-  const { weekStartMonday, weekEndSaturday } = getActiveWeekBounds();
+  const { weekStartMonday, weekEndSaturday } = getActiveWeekBounds(weekOffset);
   return item.date >= weekStartMonday && item.date <= weekEndSaturday;
+}
+
+export function isCancellationInCurrentWeek(item: CancelledClassSession): boolean {
+  return isCancellationInTargetWeek(item, 0);
 }
 
 /**
@@ -959,7 +973,7 @@ export function MakeupClassBookingModal({
                   <div className="p-2 rounded-lg bg-amber-950/25 border border-amber-800/50 text-amber-300 text-[11px] flex items-start gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                     <span>
-                      <strong>Building J Note:</strong> Computer labs in Building J are shared across departments; availability is unconfirmed and subject to lab staff permission.
+                      <strong>Shared Rooms Note:</strong> Building A 3rd-floor rooms (A-3xx) and Building J computer labs are shared across departments; availability is unconfirmed.
                     </span>
                   </div>
 
@@ -972,6 +986,7 @@ export function MakeupClassBookingModal({
                       {filteredAvailableRooms.map(r => {
                         const isSelected = room === r;
                         const isBldgA = r.includes('A-');
+                        const isShared = isSharedRoom(r);
 
                         return (
                           <button
@@ -996,11 +1011,11 @@ export function MakeupClassBookingModal({
                               )}
                             </div>
                             <div className="text-[10px] text-slate-400 flex items-center justify-between">
-                              <span className={isBldgA ? 'text-slate-400' : 'text-amber-400/90 font-medium'}>
-                                {isBldgA ? 'Building A' : 'Building J (Shared)'}
+                              <span className={!isShared ? 'text-slate-400' : 'text-amber-400/90 font-medium'}>
+                                {!isShared ? 'Building A' : isBldgA ? 'Building A (Shared)' : 'Building J (Shared)'}
                               </span>
                               <span className={`font-semibold ${isSelected ? 'text-emerald-300' : 'text-slate-400'}`}>
-                                {isSelected ? 'Selected' : 'Free'}
+                                {isSelected ? 'Selected' : isShared ? 'Shared' : 'Free'}
                               </span>
                             </div>
                           </button>
@@ -1014,7 +1029,7 @@ export function MakeupClassBookingModal({
                       <div className="flex items-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                         <span>
-                          Selected: <strong className="text-white font-mono">{room}</strong> ({room.includes('A-') ? 'Building A' : 'Building J · Shared Lab'})
+                          Selected: <strong className="text-white font-mono">{room}</strong> ({!isSharedRoom(room) ? 'Building A' : room.includes('A-') ? 'Building A 3rd Floor · Shared Room' : 'Building J · Shared Lab'})
                         </span>
                       </div>
                       <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-900 border border-emerald-700 font-bold uppercase">

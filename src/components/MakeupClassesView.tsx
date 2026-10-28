@@ -14,7 +14,8 @@ import {
   Lock,
   BookOpen,
   X,
-  Ban
+  Ban,
+  CalendarDays
 } from 'lucide-react';
 import { SCHEDULE_DATA, ALL_SESSIONS, ScheduleSession } from '../data/scheduleData';
 import {
@@ -24,6 +25,8 @@ import {
   ScheduleDay,
   isBookingExpired,
   isCancellationExpired,
+  isBookingInTargetWeek,
+  isCancellationInTargetWeek,
   canDeleteMakeupBooking,
   canManageCancelledClass,
   getActiveWeekBounds
@@ -37,6 +40,8 @@ interface MakeupClassesViewProps {
   isStudentMode?: boolean;
   activeGroupId?: string;
   searchQuery?: string;
+  weekOffset?: 0 | 1;
+  onSelectWeekOffset?: (offset: 0 | 1) => void;
   onOpenBookingModal?: () => void;
   onDeleteMakeupBooking?: (id: string) => void;
   onSaveCancelledClass?: (item: CancelledClassSession) => void;
@@ -51,12 +56,26 @@ export function MakeupClassesView({
   isStudentMode = false,
   activeGroupId,
   searchQuery = '',
+  weekOffset,
+  onSelectWeekOffset,
   onOpenBookingModal,
   onDeleteMakeupBooking,
   onSaveCancelledClass,
   onDeleteCancelledClass
 }: MakeupClassesViewProps) {
-  const weekBounds = useMemo(() => getActiveWeekBounds(), []);
+  const [localWeekOffset, setLocalWeekOffset] = useState<0 | 1>(0);
+  const currentWeekOffset = weekOffset !== undefined ? weekOffset : localWeekOffset;
+  const handleWeekChange = (offset: 0 | 1) => {
+    if (onSelectWeekOffset) onSelectWeekOffset(offset);
+    setLocalWeekOffset(offset);
+  };
+
+  const weekBounds = useMemo(() => getActiveWeekBounds(currentWeekOffset), [currentWeekOffset]);
+  const thisWeekBounds = useMemo(() => getActiveWeekBounds(0), []);
+  const nextWeekBounds = useMemo(() => getActiveWeekBounds(1), []);
+
+  // Week scope filter: 'selected' (filters to active currentWeekOffset) | 'all' (all upcoming)
+  const [weekScope, setWeekScope] = useState<'selected' | 'all'>('selected');
 
   // View filter: 'makeup' | 'cancelled' | 'all'
   const [sectionTab, setSectionTab] = useState<'all' | 'makeup' | 'cancelled'>('all');
@@ -71,6 +90,7 @@ export function MakeupClassesView({
 
   // Quick "Mark Class as Cancelled" modal state for Class Monitors / Admin
   const [isCancelModalOpen, setIsCancelModalOpen] = useState<boolean>(false);
+  const [cancelWeekOffset, setCancelWeekOffset] = useState<0 | 1>(0);
   const [cancelGroup, setCancelGroup] = useState<string>(
     currentUserProfile?.groupId && currentUserProfile.groupId !== 'Alumni' && currentUserProfile.groupId !== 'I5'
       ? currentUserProfile.groupId
@@ -97,9 +117,23 @@ export function MakeupClassesView({
     [cancelledClasses]
   );
 
+  // Next week count badges
+  const nextWeekMakeupsCount = useMemo(
+    () => activeMakeups.filter(b => isBookingInTargetWeek(b, 1)).length,
+    [activeMakeups]
+  );
+
+  const thisWeekMakeupsCount = useMemo(
+    () => activeMakeups.filter(b => isBookingInTargetWeek(b, 0)).length,
+    [activeMakeups]
+  );
+
   // Filtered Make-up Classes
   const filteredMakeups = useMemo(() => {
     return activeMakeups.filter(b => {
+      if (weekScope === 'selected' && !isBookingInTargetWeek(b, currentWeekOffset)) {
+        return false;
+      }
       const bCohort = b.generation || (b.groupId ? b.groupId.split('-')[0] : '');
       if (cohortFilter !== 'ALL' && bCohort !== cohortFilter) return false;
       if (groupFilter !== 'ALL' && b.groupId !== groupFilter) return false;
@@ -119,11 +153,14 @@ export function MakeupClassesView({
       }
       return true;
     });
-  }, [activeMakeups, cohortFilter, groupFilter, typeFilter, dayFilter, searchQuery]);
+  }, [activeMakeups, weekScope, currentWeekOffset, cohortFilter, groupFilter, typeFilter, dayFilter, searchQuery]);
 
   // Filtered Cancelled Classes
   const filteredCancellations = useMemo(() => {
     return activeCancellations.filter(c => {
+      if (weekScope === 'selected' && !isCancellationInTargetWeek(c, currentWeekOffset)) {
+        return false;
+      }
       const cCohort = c.cohort || (c.groupId ? c.groupId.split('-')[0] : '');
       if (cohortFilter !== 'ALL' && cCohort !== cohortFilter) return false;
       if (groupFilter !== 'ALL' && c.groupId !== groupFilter) return false;
@@ -142,7 +179,7 @@ export function MakeupClassesView({
       }
       return true;
     });
-  }, [activeCancellations, cohortFilter, groupFilter, dayFilter, searchQuery]);
+  }, [activeCancellations, weekScope, currentWeekOffset, cohortFilter, groupFilter, dayFilter, searchQuery]);
 
   // Sessions available to cancel in the modal for selected group & day
   const sessionsForCancelModal = useMemo(() => {
@@ -162,7 +199,8 @@ export function MakeupClassesView({
       return;
     }
 
-    const targetDate = weekBounds.dayDatesMap[targetSession.day];
+    const cancelBounds = getActiveWeekBounds(cancelWeekOffset);
+    const targetDate = cancelBounds.dayDatesMap[targetSession.day];
     const alreadyCancelled = activeCancellations.some(
       c =>
         c.groupId === cancelGroup &&
@@ -172,7 +210,7 @@ export function MakeupClassesView({
     );
 
     if (alreadyCancelled) {
-      setCancelError('This class session is already marked as cancelled for the current week.');
+      setCancelError(`This class session is already marked as cancelled for ${cancelBounds.weekLabel.toLowerCase()} (${targetDate}).`);
       return;
     }
 
@@ -198,7 +236,7 @@ export function MakeupClassesView({
       cancelledBy: monitorName,
       cancelledByUid: currentUserProfile?.uid || '',
       cancelledByEmail: currentUserProfile?.email || '',
-      reason: cancelReason.trim() || 'Cancelled for current week',
+      reason: cancelReason.trim() || `Cancelled for ${cancelBounds.weekLabel}`,
       createdAt: new Date().toISOString()
     };
 
@@ -273,6 +311,88 @@ export function MakeupClassesView({
           )}
         </div>
 
+        {/* Academic Week Selection Bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-800">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+              <CalendarDays className="w-3.5 h-3.5 text-sky-400" />
+              Academic Week:
+            </span>
+            <div className="flex items-center gap-1 p-0.5 bg-slate-950 border border-slate-800 rounded-lg">
+              <button
+                type="button"
+                onClick={() => {
+                  setWeekScope('selected');
+                  handleWeekChange(0);
+                }}
+                className={`px-3 py-1 rounded text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  weekScope === 'selected' && currentWeekOffset === 0
+                    ? 'bg-sky-600 text-white shadow-2xs font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>This Week</span>
+                <span className="text-[10px] font-mono opacity-80">({thisWeekBounds.formattedWeekRange})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setWeekScope('selected');
+                  handleWeekChange(1);
+                }}
+                className={`px-3 py-1 rounded text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  weekScope === 'selected' && currentWeekOffset === 1
+                    ? 'bg-sky-600 text-white shadow-2xs font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>Next Week</span>
+                <span className="text-[10px] font-mono opacity-80">({nextWeekBounds.formattedWeekRange})</span>
+                {nextWeekMakeupsCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded text-[10px] font-bold font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    +{nextWeekMakeupsCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setWeekScope('all')}
+                className={`px-3 py-1 rounded text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  weekScope === 'all'
+                    ? 'bg-slate-800 text-white shadow-2xs font-bold'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <span>All Active Upcoming</span>
+                <span className="text-[10px] font-mono opacity-80">({activeMakeups.length})</span>
+              </button>
+            </div>
+          </div>
+
+          <div className="text-xs text-slate-400 font-mono">
+            Active: <span className="text-emerald-300 font-bold">{activeMakeups.length} make-up</span> · <span className="text-rose-300 font-bold">{activeCancellations.length} cancelled</span>
+          </div>
+        </div>
+
+        {/* Next Week Info Banner */}
+        {weekScope === 'selected' && currentWeekOffset === 1 && (
+          <div className="p-3 rounded-lg bg-sky-950/70 border border-sky-800 text-xs text-sky-200 flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-sky-400 shrink-0" />
+              <span>
+                <strong>Viewing Next Week Schedule Changes ({nextWeekBounds.formattedWeekRange}).</strong> Make-up classes booked for next week are shown below and appear on the Next Week timetable matrix.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleWeekChange(0)}
+              className="px-2.5 py-1 rounded bg-sky-900 hover:bg-sky-800 text-sky-100 font-bold text-xs cursor-pointer transition-colors"
+            >
+              Switch to This Week
+            </button>
+          </div>
+        )}
+
         {/* Filter Controls */}
         <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* View Mode Segmented Buttons */}
@@ -308,7 +428,7 @@ export function MakeupClassesView({
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              Cancelled This Week ({filteredCancellations.length})
+              Cancelled Classes ({filteredCancellations.length})
             </button>
           </div>
 
@@ -442,6 +562,13 @@ export function MakeupClassesView({
                           <span className={`px-2 py-0.5 rounded text-[11px] font-semibold uppercase tracking-wider ${getMakeupTypeBadge(sType)}`}>
                             {sType}
                           </span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                            isBookingInTargetWeek(booking, 0)
+                              ? 'bg-slate-800 text-slate-300 border border-slate-700'
+                              : 'bg-sky-950 text-sky-300 border border-sky-800'
+                          }`}>
+                            {isBookingInTargetWeek(booking, 0) ? 'This Week' : isBookingInTargetWeek(booking, 1) ? 'Next Week' : 'Upcoming'}
+                          </span>
                           <span className="text-xs text-amber-300 font-semibold">
                             · Make-up Class
                           </span>
@@ -563,7 +690,14 @@ export function MakeupClassesView({
                             {item.groupId}
                           </span>
                           <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-rose-900/80 text-rose-100">
-                            Cancelled This Week
+                            Cancelled Class
+                          </span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                            isCancellationInTargetWeek(item, 0)
+                              ? 'bg-slate-800 text-slate-300 border border-slate-700'
+                              : 'bg-sky-950 text-sky-300 border border-sky-800'
+                          }`}>
+                            {isCancellationInTargetWeek(item, 0) ? 'This Week' : isCancellationInTargetWeek(item, 1) ? 'Next Week' : 'Upcoming'}
                           </span>
                           <span className="text-xs text-slate-400">
                             · {item.type}
@@ -806,10 +940,10 @@ export function MakeupClassesView({
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white">
-                    Mark Class as Cancelled (This Week Only)
+                    Mark Class as Cancelled ({getActiveWeekBounds(cancelWeekOffset).weekLabel})
                   </h3>
                   <p className="text-xs text-slate-400">
-                    Releases the classroom for this week ({weekBounds.formattedWeekRange}) and resets on Sunday.
+                    Releases the classroom for {getActiveWeekBounds(cancelWeekOffset).weekLabel.toLowerCase()} ({getActiveWeekBounds(cancelWeekOffset).formattedWeekRange}) and resets on Sunday.
                   </p>
                 </div>
               </div>
@@ -828,6 +962,45 @@ export function MakeupClassesView({
                   {cancelError}
                 </div>
               )}
+
+              {/* Target Academic Week */}
+              <div>
+                <label className="block text-slate-300 font-semibold mb-1">
+                  Target Academic Week *
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCancelWeekOffset(0);
+                      setSelectedSessionKey('');
+                    }}
+                    className={`p-2 rounded-lg border text-left text-xs transition-colors cursor-pointer ${
+                      cancelWeekOffset === 0
+                        ? 'bg-rose-950/90 border-rose-500 text-white font-bold ring-1 ring-rose-500'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
+                    }`}
+                  >
+                    <div>This Week</div>
+                    <div className="text-[10px] font-mono text-slate-400">{thisWeekBounds.formattedWeekRange}</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCancelWeekOffset(1);
+                      setSelectedSessionKey('');
+                    }}
+                    className={`p-2 rounded-lg border text-left text-xs transition-colors cursor-pointer ${
+                      cancelWeekOffset === 1
+                        ? 'bg-rose-950/90 border-rose-500 text-white font-bold ring-1 ring-rose-500'
+                        : 'bg-slate-950 border-slate-800 text-slate-400 hover:bg-slate-900'
+                    }`}
+                  >
+                    <div>Next Week</div>
+                    <div className="text-[10px] font-mono text-slate-400">{nextWeekBounds.formattedWeekRange}</div>
+                  </button>
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
@@ -852,7 +1025,7 @@ export function MakeupClassesView({
 
                 <div>
                   <label className="block text-slate-300 font-semibold mb-1">
-                    Day of Week (Current Week) *
+                    Day of Week ({getActiveWeekBounds(cancelWeekOffset).weekLabel}) *
                   </label>
                   <select
                     value={cancelDay}
@@ -864,7 +1037,7 @@ export function MakeupClassesView({
                   >
                     {SCHEDULE_DATA.meta.days.map(d => (
                       <option key={d} value={d}>
-                        {d} ({weekBounds.dayDatesMap[d]})
+                        {d} ({getActiveWeekBounds(cancelWeekOffset).dayDatesMap[d]})
                       </option>
                     ))}
                   </select>
@@ -873,7 +1046,7 @@ export function MakeupClassesView({
 
               <div>
                 <label className="block text-slate-300 font-semibold mb-1">
-                  Select Class Session on {cancelDay} ({weekBounds.dayDatesMap[cancelDay]}) *
+                  Select Class Session on {cancelDay} ({getActiveWeekBounds(cancelWeekOffset).dayDatesMap[cancelDay]}) *
                 </label>
                 {sessionsForCancelModal.length === 0 ? (
                   <div className="p-3 rounded-lg bg-slate-950 border border-slate-800 text-slate-400">
@@ -884,12 +1057,13 @@ export function MakeupClassesView({
                     {sessionsForCancelModal.map((s) => {
                       const key = `${s.day}|${s.time}|${s.course}`;
                       const isSelected = selectedSessionKey === key;
+                      const cancelDate = getActiveWeekBounds(cancelWeekOffset).dayDatesMap[s.day];
                       const isAlreadyCancelled = activeCancellations.some(
                         c =>
                           c.groupId === cancelGroup &&
                           c.day === s.day &&
                           c.time === s.time &&
-                          c.date === weekBounds.dayDatesMap[s.day]
+                          c.date === cancelDate
                       );
 
                       return (

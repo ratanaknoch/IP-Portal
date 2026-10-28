@@ -142,6 +142,8 @@ export default function App() {
 
   // Active view router modes
   const [activeMode, setActiveMode] = useState<NavMode>('matrix');
+  // Academic week selection: 0 = This Week, 1 = Next Week
+  const [weekOffset, setWeekOffset] = useState<0 | 1>(0);
   const [selectedCohort, setSelectedCohort] = useState<string>('ALL');
   const [selectedGroup, setSelectedGroup] = useState<string>(myCohort);
   const [selectedLecturer, setSelectedLecturer] = useState<string>('Mr. PICH Reatrey');
@@ -1130,6 +1132,8 @@ export default function App() {
             }}
             makeupBookings={makeupBookings}
             cancelledClasses={cancelledClasses}
+            weekOffset={weekOffset}
+            onSelectWeekOffset={setWeekOffset}
           />
         )}
 
@@ -1156,6 +1160,8 @@ export default function App() {
             }}
             makeupBookings={makeupBookings}
             cancelledClasses={cancelledClasses}
+            weekOffset={weekOffset}
+            onSelectWeekOffset={setWeekOffset}
           />
         )}
 
@@ -1167,6 +1173,8 @@ export default function App() {
             activeGroupId={selectedGroup}
             makeupBookings={makeupBookings}
             cancelledClasses={cancelledClasses}
+            weekOffset={weekOffset}
+            onSelectWeekOffset={setWeekOffset}
           />
         )}
 
@@ -1186,6 +1194,8 @@ export default function App() {
             activeGroupId={selectedGroup}
             searchQuery={searchQuery}
             onSelectSession={setActiveModalSession}
+            weekOffset={weekOffset}
+            onSelectWeekOffset={setWeekOffset}
           />
         )}
 

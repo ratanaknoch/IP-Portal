@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { 
   SCHEDULE_DATA, 
   ScheduleSession, 
@@ -6,6 +7,8 @@ import {
   getSlotLiveStatus
 } from '../data/scheduleData';
 import { 
+  isBookingInTargetWeek, 
+  isCancellationInTargetWeek,
   isBookingInCurrentWeek, 
   isCancellationInCurrentWeek,
   MakeupClassBooking, 
@@ -18,7 +21,9 @@ import {
   Bookmark, 
   RefreshCw,
   CalendarPlus,
-  Ban
+  Ban,
+  Calendar,
+  CalendarDays
 } from 'lucide-react';
 
 interface TimetableMatrixProps {
@@ -36,6 +41,8 @@ interface TimetableMatrixProps {
   onOpenMakeupPage?: () => void;
   makeupBookings?: MakeupClassBooking[];
   cancelledClasses?: CancelledClassSession[];
+  weekOffset?: 0 | 1;
+  onSelectWeekOffset?: (offset: 0 | 1) => void;
 }
 
 export function TimetableMatrix({
@@ -51,16 +58,23 @@ export function TimetableMatrix({
   onChangeClass,
   onOpenMakeupPage,
   makeupBookings = [],
-  cancelledClasses = []
+  cancelledClasses = [],
+  weekOffset,
+  onSelectWeekOffset
 }: TimetableMatrixProps) {
+  const [localWeekOffset, setLocalWeekOffset] = useState<0 | 1>(0);
+  const currentWeekOffset = weekOffset !== undefined ? weekOffset : localWeekOffset;
+  const handleWeekChange = (offset: 0 | 1) => {
+    if (onSelectWeekOffset) onSelectWeekOffset(offset);
+    setLocalWeekOffset(offset);
+  };
+
   const cambodiaTime = getCambodiaTime();
-  const weekBounds = getActiveWeekBounds();
+  const weekBounds = getActiveWeekBounds(currentWeekOffset);
+  const thisWeekBounds = getActiveWeekBounds(0);
+  const nextWeekBounds = getActiveWeekBounds(1);
   const days = SCHEDULE_DATA.meta.days;
   const timeSlots = SCHEDULE_DATA.meta.timeSlots;
-
-  // Filter make-up bookings and cancelled classes active for the current week (Mon–Sat, resets every Sunday)
-  const currentWeekMakeups = makeupBookings.filter(m => isBookingInCurrentWeek(m));
-  const currentWeekCancellations = cancelledClasses.filter(c => isCancellationInCurrentWeek(c));
 
   // Filter available groups based on selected cohort (for class monitor view)
   const filteredGroups = selectedCohort === 'ALL'
@@ -72,15 +86,20 @@ export function TimetableMatrix({
 
   const isMyCohort = myCohort === activeGroup.id;
 
-  const groupMakeupsCount = currentWeekMakeups.filter(m => m.groupId === activeGroup.id).length;
-  const groupCancelledCount = currentWeekCancellations.filter(c => c.groupId === activeGroup.id).length;
+  // Filter make-up bookings and cancelled classes active for the selected week (0 = This Week, 1 = Next Week)
+  const activeWeekMakeups = makeupBookings.filter(m => isBookingInTargetWeek(m, currentWeekOffset));
+  const activeWeekCancellations = cancelledClasses.filter(c => isCancellationInTargetWeek(c, currentWeekOffset));
+
+  const groupMakeupsCount = activeWeekMakeups.filter(m => m.groupId === activeGroup.id).length;
+  const groupCancelledCount = activeWeekCancellations.filter(c => c.groupId === activeGroup.id).length;
+  const nextWeekMakeupsCount = makeupBookings.filter(m => isBookingInTargetWeek(m, 1) && m.groupId === activeGroup.id).length;
 
   // Helper to find session for day and time slot
-  // 1. Make-up class bookings for the current week overwrite regular/cancelled slots
-  // 2. Cancelled classes for the current week display as Cancelled on the calendar (until Sunday reset)
+  // 1. Make-up class bookings for the active week overwrite regular/cancelled slots
+  // 2. Cancelled classes for the active week display as Cancelled on the calendar
   // 3. Otherwise fall back to regular scheduled session
   const getSessionForSlot = (day: string, slot: string): ScheduleSession | undefined => {
-    const makeup = currentWeekMakeups.find(m => 
+    const makeup = activeWeekMakeups.find(m => 
       m.groupId === activeGroup.id && 
       m.day === day && 
       (m.timeSlots ? m.timeSlots.includes(slot) : (m.time === slot || m.time.includes(slot)))
@@ -106,7 +125,7 @@ export function TimetableMatrix({
 
     const regular = activeGroup.schedule.find(s => s.day === day && s.time === slot);
     if (regular) {
-      const cancelled = currentWeekCancellations.find(
+      const cancelled = activeWeekCancellations.find(
         c => c.groupId === activeGroup.id && c.day === day && c.time === slot
       );
       if (cancelled) {
@@ -144,8 +163,54 @@ export function TimetableMatrix({
   return (
     <div className="space-y-4">
       {/* Controls Strip (No-print) */}
-      <div className="no-print bg-slate-900 border border-slate-800 rounded-md p-2.5 sm:p-3 space-y-2 shadow-xs">
+      <div className="no-print bg-slate-900 border border-slate-800 rounded-md p-2.5 sm:p-3 space-y-2.5 shadow-xs">
         
+        {/* Week Switcher Header Row */}
+        <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2 border-b border-slate-800/80">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              Academic Week:
+            </span>
+            <div className="flex items-center gap-1 p-0.5 bg-slate-950 border border-slate-800 rounded-lg">
+              <button
+                type="button"
+                onClick={() => handleWeekChange(0)}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                  currentWeekOffset === 0
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                }`}
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                <span>This Week ({thisWeekBounds.formattedWeekRange})</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleWeekChange(1)}
+                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                  currentWeekOffset === 1
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-850'
+                }`}
+              >
+                <CalendarDays className="w-3.5 h-3.5" />
+                <span>Next Week ({nextWeekBounds.formattedWeekRange})</span>
+                {nextWeekMakeupsCount > 0 && (
+                  <span className="ml-1 px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-emerald-500 text-slate-950">
+                    +{nextWeekMakeupsCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="text-[11px] text-slate-400 flex items-center gap-2">
+            <span className="font-mono text-slate-300 font-semibold">{weekBounds.formattedWeekRange}</span>
+            <span>·</span>
+            <span className="text-emerald-400/90 font-medium">Auto-resets Sunday</span>
+          </div>
+        </div>
+
         {/* If Student Mode: Compact Class Info & Direct Switcher */}
         {isStudentMode ? (
           <div className="flex flex-wrap items-center justify-between gap-2.5">
@@ -175,12 +240,12 @@ export function TimetableMatrix({
                 >
                   <CalendarPlus className="w-3.5 h-3.5" />
                   <span>
-                    {groupMakeupsCount} Make-up · {groupCancelledCount} Cancelled this week
+                    {groupMakeupsCount} Make-up · {groupCancelledCount} Cancelled for {currentWeekOffset === 0 ? 'this week' : 'next week'}
                   </span>
                 </button>
               )}
               <div className="text-[11px] text-slate-400 font-medium">
-                {activeGroup.schedule.length} sessions/week · Resets Sunday
+                {activeGroup.schedule.length} sessions/week · {currentWeekOffset === 0 ? 'This Week' : 'Next Week'}
               </div>
             </div>
           </div>
@@ -250,7 +315,7 @@ export function TimetableMatrix({
 
             <div className="flex items-center gap-3 flex-wrap">
               <span className="text-[11px] text-slate-400">
-                Click any class on the timetable to view details or mark as cancelled for this week ({weekBounds.formattedWeekRange})
+                Viewing {currentWeekOffset === 0 ? 'This Week' : 'Next Week'} ({weekBounds.formattedWeekRange})
               </span>
               <div className="text-[11px] text-slate-400 font-medium">
                 Showing <span className="font-bold text-slate-200">{activeGroup.id}</span> · {activeGroup.schedule.length} weekly sessions
@@ -261,6 +326,25 @@ export function TimetableMatrix({
 
       </div>
 
+      {/* Next Week Alert Banner */}
+      {currentWeekOffset === 1 && (
+        <div className="no-print flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-lg bg-sky-950/80 border border-sky-700 text-xs text-sky-200 shadow-sm animate-in fade-in duration-150">
+          <div className="flex items-center gap-2">
+            <CalendarDays className="w-4 h-4 text-sky-400 shrink-0" />
+            <span>
+              Viewing <strong className="text-white">Next Week's Timetable</strong> ({weekBounds.formattedWeekRange}). Any make-up classes scheduled in advance for next week are rendered directly below in their respective slots.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => handleWeekChange(0)}
+            className="text-[11px] font-semibold text-sky-300 hover:text-white underline underline-offset-2 shrink-0 cursor-pointer"
+          >
+            Switch to This Week
+          </button>
+        </div>
+      )}
+
       {/* Printable Title Block */}
       <div className="print-only mb-4 text-center">
         <h1 className="text-xl font-bold uppercase tracking-tight text-slate-900">
@@ -270,7 +354,7 @@ export function TimetableMatrix({
           International Engineering School · {SCHEDULE_DATA.meta.academicYear} · {SCHEDULE_DATA.meta.semester}
         </h2>
         <p className="text-xs font-bold mt-1 text-slate-800">
-          Weekly Timetable: {activeGroup.name} ({activeGroup.id})
+          Weekly Timetable: {activeGroup.name} ({activeGroup.id}) · {currentWeekOffset === 0 ? 'This Week' : 'Next Week'} ({weekBounds.formattedWeekRange})
         </p>
       </div>
 
@@ -295,7 +379,7 @@ export function TimetableMatrix({
                   Time Slot
                 </th>
                 {days.map((day) => {
-                  const isToday = cambodiaTime.dayName === day;
+                  const isToday = currentWeekOffset === 0 && cambodiaTime.dayName === day;
                   const dayDate = weekBounds.dayDatesMap[day];
                   return (
                     <th 
