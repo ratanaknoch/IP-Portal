@@ -63,12 +63,53 @@ export default function App() {
       if (p === '/release-notes' || p === '/changelog') return 'release-notes';
       if (p === '/privacy' || p === '/privacy-policy') return 'privacy';
       if (p === '/terms' || p === '/terms-of-service' || p === '/tos') return 'terms';
+      if (
+        p === '/schedule' ||
+        p === '/rooms' ||
+        p === '/room' ||
+        p === '/lecturers' ||
+        p === '/lecturer' ||
+        p === '/agenda' ||
+        p === '/daily' ||
+        p === '/makeup-classes' ||
+        p === '/makeups' ||
+        p === '/clubs' ||
+        p === '/club' ||
+        p === '/booking' ||
+        p === '/free-rooms'
+      ) {
+        return 'schedule';
+      }
     } catch {
       // ignore
     }
     return 'landing';
   });
-  const [portalRole, setPortalRole] = useState<'student' | 'class-monitor'>('student');
+
+  const [portalRole, setPortalRole] = useState<'student' | 'class-monitor'>(() => {
+    try {
+      const search = window.location.search.toLowerCase();
+      const params = new URLSearchParams(search);
+      const portalParam = params.get('portal');
+      if (portalParam === 'monitor' || portalParam === 'class-monitor') {
+        return 'class-monitor';
+      }
+      if (portalParam === 'student') {
+        return 'student';
+      }
+      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      if (p === '/rooms' || p === '/room' || p === '/lecturers' || p === '/lecturer') {
+        return 'class-monitor';
+      }
+      const storedRole = localStorage.getItem('itc_portal_role');
+      if (storedRole === 'class-monitor' || storedRole === 'student') {
+        return storedRole;
+      }
+    } catch {
+      // ignore
+    }
+    return 'student';
+  });
   const [activeMonitorGen, setActiveMonitorGen] = useState<string>('Bigboss@67');
 
   // Monitor authorization state (persisted in sessionStorage)
@@ -140,12 +181,68 @@ export default function App() {
     }
   });
 
-  // Active view router modes
-  const [activeMode, setActiveMode] = useState<NavMode>('matrix');
-  // Academic week selection: 0 = This Week, 1 = Next Week
-  const [weekOffset, setWeekOffset] = useState<0 | 1>(0);
-  const [selectedCohort, setSelectedCohort] = useState<string>('ALL');
-  const [selectedGroup, setSelectedGroup] = useState<string>(myCohort);
+  // Active view router modes (persisted across refresh)
+  const [activeMode, setActiveMode] = useState<NavMode>(() => {
+    try {
+      const p = window.location.pathname.toLowerCase().replace(/\/$/, '');
+      if (p === '/rooms' || p === '/room') return 'room';
+      if (p === '/lecturers' || p === '/lecturer') return 'lecturer';
+      if (p === '/agenda' || p === '/daily') return 'agenda';
+      if (p === '/makeup-classes' || p === '/makeups') return 'makeup';
+      if (p === '/clubs' || p === '/club') return 'clubs';
+      const params = new URLSearchParams(window.location.search);
+      const m = params.get('mode');
+      if (m && ['matrix', 'lecturer', 'room', 'agenda', 'makeup', 'clubs'].includes(m)) {
+        return m as NavMode;
+      }
+      const storedMode = localStorage.getItem('itc_active_mode');
+      if (storedMode && ['matrix', 'lecturer', 'room', 'agenda', 'makeup', 'clubs'].includes(storedMode)) {
+        return storedMode as NavMode;
+      }
+    } catch {}
+    return 'matrix';
+  });
+
+  // Academic week selection: 0 = This Week, 1 = Next Week (persisted in sessionStorage)
+  const [weekOffset, setWeekOffset] = useState<0 | 1>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const w = params.get('week');
+      if (w === '1') return 1;
+      if (w === '0') return 0;
+      const storedWeek = sessionStorage.getItem('itc_week_offset');
+      if (storedWeek === '1') return 1;
+    } catch {}
+    return 0;
+  });
+
+  const [selectedCohort, setSelectedCohort] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const c = params.get('cohort');
+      if (c) return c;
+      const g = params.get('group');
+      if (g) {
+        const found = SCHEDULE_DATA.groups.find(item => item.id === g);
+        if (found) return found.cohort;
+      }
+    } catch {}
+    return 'ALL';
+  });
+
+  const [selectedGroup, setSelectedGroup] = useState<string>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const g = params.get('group');
+      if (g) return g;
+      const storedGroup = localStorage.getItem('itc_selected_group');
+      if (storedGroup) return storedGroup;
+      const myCohortStored = localStorage.getItem('itc_my_cohort');
+      if (myCohortStored) return myCohortStored;
+    } catch {}
+    return 'I2-SE';
+  });
+
   const [selectedLecturer, setSelectedLecturer] = useState<string>('Mr. PICH Reatrey');
   const [selectedRoom, setSelectedRoom] = useState<string>('Room A-109');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -183,8 +280,40 @@ export default function App() {
     const grpParam = params.get('group');
     const cohortParam = params.get('cohort');
 
+    const portalParam = params.get('portal');
+    if (portalParam === 'monitor' || portalParam === 'class-monitor') {
+      setPortalRole('class-monitor');
+      try {
+        localStorage.setItem('itc_portal_role', 'class-monitor');
+      } catch {}
+    } else if (portalParam === 'student') {
+      setPortalRole('student');
+      try {
+        localStorage.setItem('itc_portal_role', 'student');
+      } catch {}
+    } else {
+      try {
+        const storedRole = localStorage.getItem('itc_portal_role');
+        if (storedRole === 'class-monitor' || storedRole === 'student') {
+          setPortalRole(storedRole);
+        }
+      } catch {}
+    }
+
+    const weekParam = params.get('week');
+    if (weekParam === '1' || weekParam === '0') {
+      const w = Number(weekParam) as 0 | 1;
+      setWeekOffset(w);
+      try {
+        sessionStorage.setItem('itc_week_offset', String(w));
+      } catch {}
+    }
+
     if (grpParam) {
       setSelectedGroup(grpParam);
+      try {
+        localStorage.setItem('itc_selected_group', grpParam);
+      } catch {}
       const matchedG = SCHEDULE_DATA.groups.find(g => g.id === grpParam);
       if (matchedG) setSelectedCohort(matchedG.cohort);
     } else if (cohortParam) {
@@ -221,19 +350,30 @@ export default function App() {
       setIsAuthModalOpen(false);
     } else if (cleanPath === '/schedule') {
       setCurrentView('schedule');
-      setActiveMode('matrix');
+      const modeParam = params.get('mode');
+      if (modeParam && ['matrix', 'lecturer', 'room', 'agenda', 'makeup', 'clubs'].includes(modeParam)) {
+        setActiveMode(modeParam as NavMode);
+      } else {
+        setActiveMode('matrix');
+      }
       setIsFreeRoomsOpen(false);
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/rooms' || cleanPath === '/room') {
       setCurrentView('schedule');
       setActiveMode('room');
       setPortalRole('class-monitor');
+      try {
+        localStorage.setItem('itc_portal_role', 'class-monitor');
+      } catch {}
       setIsFreeRoomsOpen(false);
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/lecturers' || cleanPath === '/lecturer') {
       setCurrentView('schedule');
       setActiveMode('lecturer');
       setPortalRole('class-monitor');
+      try {
+        localStorage.setItem('itc_portal_role', 'class-monitor');
+      } catch {}
       setIsFreeRoomsOpen(false);
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/agenda' || cleanPath === '/daily') {
@@ -814,14 +954,21 @@ export default function App() {
         : myCohort || 'I2-SE';
 
     setSelectedGroup(groupToSelect);
+    try {
+      localStorage.setItem('itc_selected_group', groupToSelect);
+    } catch {}
     const grp = SCHEDULE_DATA.groups.find(g => g.id === groupToSelect);
     if (grp) setSelectedCohort(grp.cohort);
     setPortalRole('student');
+    try {
+      localStorage.setItem('itc_portal_role', 'student');
+      localStorage.setItem('itc_active_mode', 'matrix');
+    } catch {}
     setActiveMode('matrix');
     setCurrentView('schedule');
     setIsAuthModalOpen(false);
     setIsOnboardingModalOpen(false);
-    navigateTo(`/schedule?group=${groupToSelect}`);
+    navigateTo(`/schedule?portal=student&group=${groupToSelect}`);
   };
 
   // Handler to enter Class Monitor Portal
@@ -834,11 +981,15 @@ export default function App() {
     }
     if (genPassword) setActiveMonitorGen(genPassword);
     setPortalRole('class-monitor');
+    try {
+      localStorage.setItem('itc_portal_role', 'class-monitor');
+      localStorage.setItem('itc_active_mode', 'matrix');
+    } catch {}
     setActiveMode('matrix');
     setCurrentView('schedule');
     setIsAuthModalOpen(false);
     setIsOnboardingModalOpen(false);
-    navigateTo(`/schedule?group=${selectedGroup}`);
+    navigateTo(`/schedule?portal=monitor&group=${selectedGroup}`);
   };
 
   // Handler to open free study rooms
@@ -856,18 +1007,34 @@ export default function App() {
   const handleSelectNavMode = (mode: NavMode) => {
     setActiveMode(mode);
     setCurrentView('schedule');
+    try {
+      localStorage.setItem('itc_active_mode', mode);
+    } catch {}
+    const portalParam = portalRole === 'class-monitor' ? '&portal=monitor' : '&portal=student';
     if (mode === 'matrix') {
-      navigateTo(`/schedule?group=${selectedGroup}`);
+      navigateTo(`/schedule?group=${selectedGroup}${portalParam}`);
     } else if (mode === 'room') {
-      navigateTo('/rooms');
+      navigateTo(`/rooms?${portalRole === 'class-monitor' ? 'portal=monitor' : ''}`);
     } else if (mode === 'lecturer') {
-      navigateTo('/lecturers');
+      navigateTo(`/lecturers?${portalRole === 'class-monitor' ? 'portal=monitor' : ''}`);
     } else if (mode === 'agenda') {
-      navigateTo(`/agenda?group=${selectedGroup}`);
+      navigateTo(`/agenda?group=${selectedGroup}${portalParam}`);
     } else if (mode === 'makeup') {
-      navigateTo('/makeup-classes');
+      navigateTo(`/makeup-classes?${portalRole === 'class-monitor' ? 'portal=monitor' : ''}`);
     } else if (mode === 'clubs') {
       navigateTo('/clubs');
+    }
+  };
+
+  const handleTogglePortalRole = () => {
+    const nextRole = portalRole === 'student' ? 'class-monitor' : 'student';
+    setPortalRole(nextRole);
+    try {
+      localStorage.setItem('itc_portal_role', nextRole);
+    } catch {}
+    const portalParam = nextRole === 'class-monitor' ? '&portal=monitor' : '&portal=student';
+    if (activeMode === 'matrix' || activeMode === 'agenda') {
+      navigateTo(`/${activeMode === 'agenda' ? 'agenda' : 'schedule'}?group=${selectedGroup}${portalParam}`);
     }
   };
 
@@ -1063,6 +1230,8 @@ export default function App() {
         onChangeClass={() => setShowClassChangeModal(true)}
         activeGroup={activeGroupObj}
         portalRole={portalRole}
+        onTogglePortalRole={handleTogglePortalRole}
+        isMonitorAuthorized={isMonitorAuthorized}
         userProfile={userProfile}
         unreadNotificationsCount={unreadNotificationsCount}
         onOpenInbox={() => setIsInboxOpen(true)}
@@ -1120,7 +1289,11 @@ export default function App() {
             selectedGroup={selectedGroup}
             onSelectGroup={(grp) => {
               setSelectedGroup(grp);
-              navigateTo(`/schedule?group=${grp}`);
+              try {
+                localStorage.setItem('itc_selected_group', grp);
+              } catch {}
+              const portalParam = portalRole === 'class-monitor' ? '&portal=monitor' : '&portal=student';
+              navigateTo(`/schedule?group=${grp}${portalParam}`);
             }}
             myCohort={myCohort}
             onSetMyCohort={handleSetMyCohort}
@@ -1133,7 +1306,12 @@ export default function App() {
             makeupBookings={makeupBookings}
             cancelledClasses={cancelledClasses}
             weekOffset={weekOffset}
-            onSelectWeekOffset={setWeekOffset}
+            onSelectWeekOffset={(w) => {
+              setWeekOffset(w);
+              try {
+                sessionStorage.setItem('itc_week_offset', String(w));
+              } catch {}
+            }}
           />
         )}
 
@@ -1161,7 +1339,12 @@ export default function App() {
             makeupBookings={makeupBookings}
             cancelledClasses={cancelledClasses}
             weekOffset={weekOffset}
-            onSelectWeekOffset={setWeekOffset}
+            onSelectWeekOffset={(w) => {
+              setWeekOffset(w);
+              try {
+                sessionStorage.setItem('itc_week_offset', String(w));
+              } catch {}
+            }}
           />
         )}
 
@@ -1174,7 +1357,12 @@ export default function App() {
             makeupBookings={makeupBookings}
             cancelledClasses={cancelledClasses}
             weekOffset={weekOffset}
-            onSelectWeekOffset={setWeekOffset}
+            onSelectWeekOffset={(w) => {
+              setWeekOffset(w);
+              try {
+                sessionStorage.setItem('itc_week_offset', String(w));
+              } catch {}
+            }}
           />
         )}
 
@@ -1195,7 +1383,12 @@ export default function App() {
             searchQuery={searchQuery}
             onSelectSession={setActiveModalSession}
             weekOffset={weekOffset}
-            onSelectWeekOffset={setWeekOffset}
+            onSelectWeekOffset={(w) => {
+              setWeekOffset(w);
+              try {
+                sessionStorage.setItem('itc_week_offset', String(w));
+              } catch {}
+            }}
           />
         )}
 

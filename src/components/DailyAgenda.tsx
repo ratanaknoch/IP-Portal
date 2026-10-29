@@ -16,7 +16,7 @@ import {
   CancelledClassSession,
   getActiveWeekBounds
 } from './MakeupClassBookingModal';
-import { Clock, Ban, Calendar, CalendarDays } from 'lucide-react';
+import { Clock, Ban, Calendar, CalendarDays, AlertTriangle } from 'lucide-react';
 
 interface DailyAgendaProps {
   onSelectSession: (session: ScheduleSession) => void;
@@ -280,6 +280,7 @@ export function DailyAgenda({
                     const style = getSessionTypeStyle(session.type);
                     const isMakeup = session.course.includes('[Make-up]');
                     const isCancelled = Boolean((session as any).isCancelledThisWeek);
+                    const isTemporary = Boolean(session.isTemporaryRoom);
                     const cancelledData = (session as any).cancelledData as CancelledClassSession | undefined;
 
                     return (
@@ -291,6 +292,8 @@ export function DailyAgenda({
                             ? 'bg-rose-950/35 border-rose-800/80 text-rose-200'
                             : isMakeup 
                             ? 'bg-amber-950/40 border-amber-800 text-amber-200' 
+                            : isTemporary
+                            ? 'bg-gradient-to-br from-amber-950/50 to-amber-900/30 border-amber-500/80 text-amber-100 ring-1 ring-amber-500/50 shadow-xs'
                             : style.card
                         }`}
                       >
@@ -309,6 +312,16 @@ export function DailyAgenda({
                                 {session.type}
                               </span>
                             </div>
+                          ) : isTemporary ? (
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-300 border border-amber-500/70 flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+                                <span>Temp Room</span>
+                              </span>
+                              <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${style.badge}`}>
+                                {session.type}
+                              </span>
+                            </div>
                           ) : (
                             <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${style.badge}`}>
                               {session.type}
@@ -319,18 +332,31 @@ export function DailyAgenda({
                           </span>
                         </div>
                         <h4 className={`font-semibold text-xs line-clamp-1 ${
-                          isCancelled ? 'text-slate-300 line-through decoration-rose-400' : 'text-slate-100'
+                          isCancelled ? 'text-slate-300 line-through decoration-rose-400' : isTemporary ? 'text-amber-100 font-bold' : 'text-slate-100'
                         }`}>
                           {session.course.replace(' [Make-up]', '')}
                         </h4>
+                        {isTemporary && (
+                          <div className="mt-1 text-[10px] text-amber-300 font-medium truncate flex items-center gap-1">
+                            <AlertTriangle className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                            <span>Relocated to Room A-402</span>
+                          </div>
+                        )}
                         <div className="mt-2 pt-2 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-400">
                           <span className="truncate">
                             {isCancelled && cancelledData
                               ? `Cancelled by ${cancelledData.cancelledBy}`
                               : session.lecturer}
                           </span>
-                          <span className={`font-mono shrink-0 ml-1 ${isCancelled ? 'text-emerald-300' : ''}`}>
+                          <span className={`font-mono shrink-0 ml-1 ${
+                            isCancelled 
+                              ? 'text-emerald-300' 
+                              : isTemporary 
+                              ? 'text-amber-300 font-bold' 
+                              : ''
+                          }`}>
                             {isCancelled ? `${session.room || 'TBD'} (Free)` : session.room || 'TBD'}
+                            {isTemporary && ' (Temp)'}
                           </span>
                         </div>
                       </div>

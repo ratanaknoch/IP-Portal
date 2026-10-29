@@ -773,10 +773,21 @@ export function RoomView({
 
                     <div 
                       onClick={() => onSelectSession(occupiedSession)}
-                      className={`p-2 rounded border cursor-pointer ${style.card} text-xs`}
+                      className={`p-2 rounded border cursor-pointer ${
+                        occupiedSession.isTemporaryRoom
+                          ? 'bg-amber-950/40 border-amber-500/80 text-amber-100 ring-1 ring-amber-500/50'
+                          : style.card
+                      } text-xs`}
                     >
-                      <div className="font-semibold text-slate-100 line-clamp-1">
-                        {occupiedSession.course}
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-semibold text-slate-100 line-clamp-1">
+                          {occupiedSession.course}
+                        </span>
+                        {occupiedSession.isTemporaryRoom && (
+                          <span className="text-[9px] uppercase font-bold text-amber-300 bg-amber-500/20 px-1 py-0.2 rounded border border-amber-500/60 shrink-0">
+                            Temp
+                          </span>
+                        )}
                       </div>
                       <div className="text-[11px] text-slate-400 mt-1">
                         {occupiedSession.groupId} · {occupiedSession.lecturer}

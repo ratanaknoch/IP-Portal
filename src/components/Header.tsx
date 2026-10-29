@@ -30,6 +30,8 @@ interface HeaderProps {
   onChangeClass?: () => void;
   activeGroup?: GroupSchedule;
   portalRole?: 'student' | 'class-monitor';
+  onTogglePortalRole?: () => void;
+  isMonitorAuthorized?: boolean;
   userProfile?: UserProfile | null;
   unreadNotificationsCount?: number;
   activeMakeupCount?: number;
@@ -47,6 +49,8 @@ export function Header({
   onOpenClubModal,
   onChangeClass,
   portalRole = 'student',
+  onTogglePortalRole,
+  isMonitorAuthorized = false,
   userProfile,
   unreadNotificationsCount = 0,
   activeMakeupCount = 0,
@@ -56,6 +60,10 @@ export function Header({
   onLogout
 }: HeaderProps) {
   const isStudent = portalRole === 'student';
+  const canToggleRole = Boolean(
+    onTogglePortalRole &&
+    (userProfile?.role === 'monitor' || userProfile?.role === 'admin' || isMonitorAuthorized)
+  );
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -109,13 +117,24 @@ export function Header({
                 <span className="font-bold text-slate-100 text-xs sm:text-sm lg:text-base tracking-tight group-hover:text-sky-400 transition-colors whitespace-nowrap truncate">
                   {isStudent ? 'Student Timetable' : 'Class Monitor'}
                 </span>
-                <span className={`hidden md:inline-block text-[11px] px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider whitespace-nowrap shrink-0 ${
-                  isStudent
-                    ? 'bg-sky-950 text-sky-300 border border-sky-800'
-                    : 'bg-amber-950 text-amber-300 border border-amber-800'
-                }`}>
-                  {isStudent ? 'Student' : 'Monitor'}
-                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    if (canToggleRole && onTogglePortalRole) {
+                      e.stopPropagation();
+                      onTogglePortalRole();
+                    }
+                  }}
+                  title={canToggleRole ? `Click to switch to ${isStudent ? 'Class Monitor' : 'Student'} Portal` : undefined}
+                  className={`hidden md:inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md font-semibold uppercase tracking-wider whitespace-nowrap shrink-0 transition-all ${
+                    isStudent
+                      ? 'bg-sky-950 text-sky-300 border border-sky-800'
+                      : 'bg-amber-950 text-amber-300 border border-amber-800'
+                  } ${canToggleRole ? 'cursor-pointer hover:scale-105 hover:border-sky-400' : ''}`}
+                >
+                  <span>{isStudent ? 'Student' : 'Monitor'}</span>
+                  {canToggleRole && <span className="text-[9px] opacity-70">⇄</span>}
+                </button>
               </div>
             </div>
           </div>
@@ -318,6 +337,24 @@ export function Header({
                         >
                           <GraduationCap className="w-4 h-4 text-sky-400" />
                           <span>Academic Status & Promotion</span>
+                        </button>
+                      )}
+
+                      {canToggleRole && onTogglePortalRole && (
+                        <button
+                          onClick={() => {
+                            setShowUserMenu(false);
+                            onTogglePortalRole();
+                          }}
+                          className="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left text-sky-300 font-semibold flex items-center justify-between transition-colors cursor-pointer text-sm"
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <Users className="w-4 h-4 text-sky-400" />
+                            <span>{isStudent ? 'Switch to Class Monitor' : 'Switch to Student View'}</span>
+                          </div>
+                          <span className="text-[10px] uppercase font-bold px-1.5 py-0.5 rounded bg-sky-950 text-sky-300 border border-sky-800">
+                            {isStudent ? 'Monitor' : 'Student'}
+                          </span>
                         </button>
                       )}
 

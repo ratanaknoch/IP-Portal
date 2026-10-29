@@ -23,7 +23,8 @@ import {
   CalendarPlus,
   Ban,
   Calendar,
-  CalendarDays
+  CalendarDays,
+  AlertTriangle
 } from 'lucide-react';
 
 interface TimetableMatrixProps {
@@ -448,6 +449,7 @@ export function TimetableMatrix({
 
                       const isMakeup = session.course.includes('[Make-up]');
                       const isCancelled = Boolean((session as any).isCancelledThisWeek);
+                      const isTemporary = Boolean(session.isTemporaryRoom);
                       const cancelledData = (session as any).cancelledData as CancelledClassSession | undefined;
                       const typeStyle = getSessionTypeStyle(session.type);
 
@@ -470,6 +472,8 @@ export function TimetableMatrix({
                                 ? 'bg-rose-950/35 border-rose-800/80 text-rose-200 hover:border-rose-500'
                                 : isMakeup
                                 ? 'bg-amber-950/40 border-amber-800 text-amber-200 hover:border-amber-500'
+                                : isTemporary
+                                ? 'bg-gradient-to-br from-amber-950/50 via-amber-900/30 to-amber-950/60 border-amber-500/80 text-amber-100 hover:border-amber-400 shadow-[0_0_12px_rgba(245,158,11,0.2)] ring-1 ring-amber-500/50'
                                 : typeStyle.card
                             } ${
                               matched 
@@ -497,6 +501,16 @@ export function TimetableMatrix({
                                     {session.type}
                                   </span>
                                 </div>
+                              ) : isTemporary ? (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/25 text-amber-300 border border-amber-500/70 flex items-center gap-1">
+                                    <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+                                    <span>Temp Room</span>
+                                  </span>
+                                  <span className={`text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded ${typeStyle.badge}`}>
+                                    {session.type}
+                                  </span>
+                                </div>
                               ) : (
                                 <span className={`text-xs font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${typeStyle.badge}`}>
                                   {session.type}
@@ -512,7 +526,7 @@ export function TimetableMatrix({
 
                             {/* Course Title */}
                             <h4 className={`font-bold leading-snug line-clamp-2 text-sm sm:text-[15px] ${
-                              isCancelled ? 'text-slate-300 line-through decoration-rose-400' : 'text-slate-100'
+                              isCancelled ? 'text-slate-300 line-through decoration-rose-400' : isTemporary ? 'text-amber-100 font-bold' : 'text-slate-100'
                             }`}>
                               {session.course.replace(' [Make-up]', '')}
                             </h4>
@@ -520,6 +534,13 @@ export function TimetableMatrix({
                             {isMakeup && (session as any).overwrittenCourse && (
                               <div className="mt-1 text-[11px] text-amber-400/90 line-through truncate font-sans">
                                 Was: {(session as any).overwrittenCourse}
+                              </div>
+                            )}
+
+                            {isTemporary && (
+                              <div className="mt-1 text-[10.5px] text-amber-300 font-semibold truncate flex items-center gap-1">
+                                <AlertTriangle className="w-3 h-3 text-amber-400 shrink-0" />
+                                <span>Relocated to Room A-402</span>
                               </div>
                             )}
 
@@ -539,13 +560,26 @@ export function TimetableMatrix({
                                     : session.lecturer}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1.5 font-mono text-xs text-slate-300 truncate font-semibold">
-                                <MapPin className={`w-3.5 h-3.5 shrink-0 ${isCancelled ? 'text-emerald-400' : 'text-sky-400'}`} />
-                                <span className={isCancelled ? 'text-emerald-300' : ''}>
+                              <div className="flex items-center gap-1.5 font-mono text-xs truncate font-semibold">
+                                <MapPin className={`w-3.5 h-3.5 shrink-0 ${
+                                  isCancelled ? 'text-emerald-400' : isTemporary ? 'text-amber-400' : 'text-sky-400'
+                                }`} />
+                                <span className={
+                                  isCancelled 
+                                    ? 'text-emerald-300' 
+                                    : isTemporary 
+                                    ? 'text-amber-300 font-bold' 
+                                    : 'text-slate-300'
+                                }>
                                   {isCancelled
                                     ? `${session.room || 'Room TBD'} (Free)`
                                     : session.room || 'Room TBD'}
                                 </span>
+                                {isTemporary && (
+                                  <span className="text-[9px] uppercase tracking-wider font-sans font-bold px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/50 ml-auto">
+                                    Temp
+                                  </span>
+                                )}
                               </div>
                             </div>
 

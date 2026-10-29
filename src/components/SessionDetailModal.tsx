@@ -134,6 +134,11 @@ export function SessionDetailModal({
                 <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
                   Make-up Class
                 </span>
+              ) : session.isTemporaryRoom ? (
+                <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-500/25 text-amber-300 border border-amber-500/70 flex items-center gap-1">
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Temporary Room</span>
+                </span>
               ) : null}
 
               <span className={`text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded ${style.badge}`}>
@@ -198,6 +203,24 @@ export function SessionDetailModal({
             </div>
           )}
 
+          {/* Status Banner for Temporary Room Relocation */}
+          {session.isTemporaryRoom && (
+            <div className="p-3.5 rounded-lg bg-amber-950/40 border border-amber-500/70 space-y-1.5 text-xs animate-in fade-in">
+              <div className="font-bold text-amber-200 flex items-center justify-between">
+                <span className="flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Temporary Classroom Notice</span>
+                </span>
+                <span className="font-mono text-[10px] uppercase font-bold text-amber-300 px-1.5 py-0.5 rounded bg-amber-900/60 border border-amber-600/70">
+                  Temporary Relocation
+                </span>
+              </div>
+              <div className="text-amber-100/90 leading-relaxed">
+                {session.temporaryRoomNote || "This class has been temporarily relocated to Room A-402 to resolve a lab conflict in Room J-602."}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <span className="text-xs text-slate-400 uppercase tracking-wider font-medium flex items-center gap-1.5">
@@ -246,10 +269,17 @@ export function SessionDetailModal({
                 <span className="text-xs text-slate-400 uppercase tracking-wider font-medium flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5" /> Location
                 </span>
-                <p className="font-medium text-slate-100">
-                  {session.room || "Room TBD (Unassigned)"}
+                <p className="font-medium text-slate-100 flex items-center gap-2 flex-wrap">
+                  <span className={session.isTemporaryRoom ? "text-amber-300 font-bold" : ""}>
+                    {session.room || "Room TBD (Unassigned)"}
+                  </span>
+                  {session.isTemporaryRoom && (
+                    <span className="text-[10px] uppercase font-bold text-amber-300 bg-amber-500/20 px-1.5 py-0.5 rounded border border-amber-500/60">
+                      Temporary Room
+                    </span>
+                  )}
                   {isCancelled && (
-                    <span className="ml-2 text-xs text-emerald-400 font-semibold">
+                    <span className="text-xs text-emerald-400 font-semibold">
                       (Room Released This Week)
                     </span>
                   )}

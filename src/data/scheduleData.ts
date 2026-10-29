@@ -10,6 +10,8 @@ export interface ScheduleSession {
   groupId?: string;
   groupName?: string;
   cohort?: string;
+  isTemporaryRoom?: boolean;
+  temporaryRoomNote?: string;
 }
 
 export interface GroupSchedule {
@@ -262,8 +264,8 @@ export const SCHEDULE_DATA: ScheduleDataset = {
         { day: "Thursday", time: "8h00 - 8h55", course: "Introduction to Computer Communication and Networks", type: "Lecture", lecturer: "Mr. YOU Vanndy", room: "Room A-401" },
         { day: "Thursday", time: "13h00 - 13h55", course: "Introduction to Computer Communication and Networks", type: "Practical", lecturer: "Mr. YOU Vanndy", room: "Room J-602" },
         { day: "Thursday", time: "14h00 - 14h55", course: "Introduction to Computer Communication and Networks", type: "Practical", lecturer: "Mr. YOU Vanndy", room: "Room J-602" },
-        { day: "Friday", time: "9h10 - 10h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Room J-602" },
-        { day: "Friday", time: "10h10 - 11h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Room J-602" },
+        { day: "Friday", time: "9h10 - 10h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Room A-402", isTemporaryRoom: true, temporaryRoomNote: "Temporary Room: Relocated from Room J-602 to Room A-402" },
+        { day: "Friday", time: "10h10 - 11h05", course: "Introduction to Software Engineering", type: "TP", lecturer: "Mr. TAL Tongsreng", room: "Room A-402", isTemporaryRoom: true, temporaryRoomNote: "Temporary Room: Relocated from Room J-602 to Room A-402" },
         { day: "Friday", time: "13h00 - 13h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
         { day: "Friday", time: "14h00 - 14h55", course: "Integrating Indigenous Science and STEM", type: "Lecture", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
         { day: "Friday", time: "15h10 - 16h05", course: "Integrating Indigenous Science and STEM", type: "Practical", lecturer: "Dr. MAY Raksmey", room: "Room A-109" },
