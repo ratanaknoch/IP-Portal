@@ -205,9 +205,9 @@ export const SCHEDULE_DATA: ScheduleDataset = {
         { day: "Thursday", time: "9h10 - 10h05", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room A-109" },
         { day: "Thursday", time: "10h10 - 11h05", course: "Physics for Engineers I", type: "Lecture", lecturer: "Mr. LONG Sovann", room: "Room A-109" },
         { day: "Friday", time: "7h00 - 7h55", course: "Effective Communication Skills", type: "Lecture", lecturer: "Mr. CHAT Koemhong", room: "Room A-109" },
-        { day: "Friday", time: "8h00 - 8h55", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. PHAUK Sokkhey", room: "" },
-        { day: "Friday", time: "9h10 - 10h05", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. PHAUK Sokkhey", room: "" },
-        { day: "Friday", time: "10h10 - 11h05", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. PHAUK Sokkhey", room: "" }
+        { day: "Friday", time: "8h00 - 8h55", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-312" },
+        { day: "Friday", time: "9h10 - 10h05", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-312" },
+        { day: "Friday", time: "10h10 - 11h05", course: "Engineering Mathematics I", type: "Tutorial", lecturer: "Dr. PHAUK Sokkhey", room: "Room A-312" }
       ]
     },
     {
