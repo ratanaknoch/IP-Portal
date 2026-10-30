@@ -31,7 +31,9 @@ dist-ssr
 *.sln
 *.sw?
 
-# AI Studio internal artifacts & temporary media attachments (never push to repo)
+# AI Studio internal artifacts, auto-generated Firebase config & temporary media attachments (never push to repo)
+firebase-applet-config.json
+firebase_applet_config.xml
 .aistudio
 .aistudio/
 .aistudio/**

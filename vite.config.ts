@@ -5,14 +5,20 @@ import path from 'path';
 import {defineConfig} from 'vite';
 
 // Generates dist/404.html fallback alongside Render's /* -> /index.html Rewrite rule
+// and strips temporary AI Studio chat attachments from production build output
 function spaStaticRoutesPlugin() {
   return {
     name: 'spa-static-routes',
     closeBundle() {
       const distDir = path.resolve(import.meta.dirname, 'dist');
       const indexHtml = path.join(distDir, 'index.html');
-      if (!fs.existsSync(indexHtml)) return;
-      fs.copyFileSync(indexHtml, path.join(distDir, '404.html'));
+      if (fs.existsSync(indexHtml)) {
+        fs.copyFileSync(indexHtml, path.join(distDir, '404.html'));
+      }
+      const aiStudioTempAssets = path.join(distDir, 'assets', 'aistudio');
+      if (fs.existsSync(aiStudioTempAssets)) {
+        fs.rmSync(aiStudioTempAssets, { recursive: true, force: true });
+      }
     },
   };
 }

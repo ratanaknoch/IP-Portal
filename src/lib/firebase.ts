@@ -30,7 +30,6 @@ import {
   signOut as fbSignOut, 
   User as FirebaseUser
 } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
 import { MakeupClassBooking, CancelledClassSession, MakeupSessionType } from '../components/MakeupClassBookingModal';
 import { SessionType, SCHEDULE_DATA } from '../data/scheduleData';
 
@@ -45,15 +44,34 @@ export function ensureIsoTimestamp(ts?: string): string {
   return new Date().toISOString();
 }
 
-// Resolve configuration: fallback between bundled config and VITE_ environment variables
+interface FirebaseAppletConfig {
+  apiKey?: string;
+  authDomain?: string;
+  projectId?: string;
+  storageBucket?: string;
+  messagingSenderId?: string;
+  appId?: string;
+  firestoreDatabaseId?: string;
+}
+
+// Optionally load local firebase-applet-config.json if present (e.g., inside AI Studio preview).
+// Because firebase-applet-config.json is gitignored, external builds (GitHub/Render/Vercel) won't fail
+// when the file is absent and will instead rely on VITE_FIREBASE_* environment variables.
+const localAppletConfigs = import.meta.glob<FirebaseAppletConfig>('/firebase-applet-config.json', {
+  eager: true,
+  import: 'default',
+});
+const fallbackConfig: FirebaseAppletConfig = localAppletConfigs['/firebase-applet-config.json'] || {};
+
+// Resolve configuration: prioritize VITE_ environment variables, fallback to local config if present
 const activeFirebaseConfig = {
-  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || firebaseConfig.apiKey,
-  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || firebaseConfig.authDomain,
-  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || firebaseConfig.projectId,
-  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || firebaseConfig.storageBucket,
-  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || firebaseConfig.messagingSenderId,
-  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || firebaseConfig.appId,
-  firestoreDatabaseId: (import.meta.env.VITE_FIRESTORE_DATABASE_ID as string) || firebaseConfig.firestoreDatabaseId
+  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || fallbackConfig.apiKey || '',
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || fallbackConfig.authDomain || '',
+  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || fallbackConfig.projectId || '',
+  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || fallbackConfig.storageBucket || '',
+  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || fallbackConfig.messagingSenderId || '',
+  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || fallbackConfig.appId || '',
+  firestoreDatabaseId: (import.meta.env.VITE_FIRESTORE_DATABASE_ID as string) || fallbackConfig.firestoreDatabaseId || ''
 };
 
 // Initialize Firebase App
