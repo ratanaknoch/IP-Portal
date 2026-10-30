@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Calendar,
   Clock,
@@ -127,6 +127,16 @@ export function MakeupClassesView({
     () => activeMakeups.filter(b => isBookingInTargetWeek(b, 0)).length,
     [activeMakeups]
   );
+
+  const hasAutoSwitchedRef = useRef(false);
+  useEffect(() => {
+    if (hasAutoSwitchedRef.current) return;
+    if (thisWeekMakeupsCount === 0 && nextWeekMakeupsCount > 0) {
+      hasAutoSwitchedRef.current = true;
+      if (onSelectWeekOffset) onSelectWeekOffset(1);
+      setLocalWeekOffset(1);
+    }
+  }, [thisWeekMakeupsCount, nextWeekMakeupsCount, onSelectWeekOffset]);
 
   // Filtered Make-up Classes
   const filteredMakeups = useMemo(() => {

@@ -236,7 +236,7 @@ service cloud.firestore {
     // 4.2 Make-up Class Bookings (Authenticated Read, Group-Scoped Monitor or Admin Write, Zero Email PII)
     match /makeupBookings/{bookingId} {
       allow get: if isSignedIn() && isVerified() && isValidId(bookingId);
-      allow list: if isSignedIn() && isVerified() && resource.data.bookedByUid is string;
+      allow list: if isSignedIn() && isVerified() && resource.data.createdAt is string;
 
       allow create: if isSignedIn() && isVerified() && isValidId(bookingId) && isValidMakeupBooking(incoming()) &&
         (isAdmin() || isMonitorForGroup(incoming().groupId)) &&
@@ -246,26 +246,29 @@ service cloud.firestore {
         isAdmin() ||
         (
           isMonitorForGroup(existing().groupId) &&
-          existing().bookedByUid == request.auth.uid &&
+          (!('bookedByUid' in existing()) || existing().bookedByUid == request.auth.uid) &&
           incoming().groupId == existing().groupId &&
-          incoming().bookedByUid == existing().bookedByUid &&
+          incoming().bookedByUid == request.auth.uid &&
           incoming().createdAt == existing().createdAt &&
           incoming().diff(existing()).affectedKeys().hasOnly([
-            'course', 'sessionType', 'room', 'generation', 'date', 'day', 'time', 'timeSlots', 'note'
+            'course', 'sessionType', 'room', 'generation', 'date', 'day', 'time', 'timeSlots', 'note', 'bookedByUid'
           ])
         )
       );
 
       allow delete: if isSignedIn() && isVerified() && isValidId(bookingId) && (
         isAdmin() ||
-        (isMonitorForGroup(existing().groupId) && existing().bookedByUid == request.auth.uid)
+        (
+          isMonitorForGroup(existing().groupId) &&
+          (!('bookedByUid' in existing()) || existing().bookedByUid == request.auth.uid)
+        )
       );
     }
 
     // 4.3 Cancelled Classes (Authenticated Read, Group-Scoped Monitor or Admin Write, Zero Email PII)
     match /cancelledClasses/{cancelId} {
       allow get: if isSignedIn() && isVerified() && isValidId(cancelId);
-      allow list: if isSignedIn() && isVerified() && resource.data.cancelledByUid is string;
+      allow list: if isSignedIn() && isVerified() && resource.data.createdAt is string;
 
       allow create: if isSignedIn() && isVerified() && isValidId(cancelId) && isValidCancelledClass(incoming()) &&
         (isAdmin() || isMonitorForGroup(incoming().groupId)) &&
@@ -275,17 +278,20 @@ service cloud.firestore {
         isAdmin() ||
         (
           isMonitorForGroup(existing().groupId) &&
-          existing().cancelledByUid == request.auth.uid &&
+          (!('cancelledByUid' in existing()) || existing().cancelledByUid == request.auth.uid) &&
           incoming().groupId == existing().groupId &&
-          incoming().cancelledByUid == existing().cancelledByUid &&
+          incoming().cancelledByUid == request.auth.uid &&
           incoming().createdAt == existing().createdAt &&
-          incoming().diff(existing()).affectedKeys().hasOnly(['reason'])
+          incoming().diff(existing()).affectedKeys().hasOnly(['reason', 'cancelledByUid'])
         )
       );
 
       allow delete: if isSignedIn() && isVerified() && isValidId(cancelId) && (
         isAdmin() ||
-        (isMonitorForGroup(existing().groupId) && existing().cancelledByUid == request.auth.uid)
+        (
+          isMonitorForGroup(existing().groupId) &&
+          (!('cancelledByUid' in existing()) || existing().cancelledByUid == request.auth.uid)
+        )
       );
     }
 
