@@ -16,7 +16,8 @@ We actively provide security patches and updates for the following versions:
 We take the security of our application and users seriously. If you believe you have discovered a vulnerability, please report it responsibly so we can resolve it before disclosure.
 
 ### How to Report
-- **Contact:** Please email your findings to `security@yourdomain.com` (or create a private GitHub Security Advisory).
+- **GitHub Private Vulnerability Reporting (Recommended):** Open a private security advisory directly at [`https://github.com/ratanaknoch/IP-Portal/security/advisories/new`](https://github.com/ratanaknoch/IP-Portal/security/advisories/new).
+- **Direct Contact:** Alternatively, email your findings to the portal administrator at `ratanaknochmunny@gmail.com`.
 - **Do not open public GitHub issues** for security vulnerabilities to protect all users until a fix is deployed.
 
 ### What to Include in Your Report
