@@ -64,10 +64,13 @@ export function AcademicStatusModal({
 
   if (!isOpen) return null;
 
+  const isMonitorRole = currentUserProfile.role === 'monitor';
+
   // Filter available groups for the selected year
   const availableGroups = SCHEDULE_DATA.groups.filter(g => g.cohort === selectedYear);
 
   const handleYearChange = (newYear: AcademicYear) => {
+    if (isMonitorRole) return;
     setSelectedYear(newYear);
     setError('');
     if (newYear === 'Alumni') {
@@ -94,7 +97,7 @@ export function AcademicStatusModal({
   };
 
   const handleQuickPromote = () => {
-    if (!nextPromotion) return;
+    if (!nextPromotion || isMonitorRole) return;
     setSelectedYear(nextPromotion.nextYear);
     setSelectedGroup(nextPromotion.defaultGroup);
     setPromotionTag('Academic Year 2027–2028');
@@ -106,13 +109,20 @@ export function AcademicStatusModal({
     setIsSaving(true);
 
     try {
-      const isAlumni = selectedYear === 'Alumni';
-      const isI5 = selectedYear === 'I5';
-      const finalGroupId = isAlumni ? 'Alumni' : isI5 ? 'I5' : selectedGroup;
+      const enforcedYear = isMonitorRole ? currentUserProfile.year : selectedYear;
+      const isAlumni = enforcedYear === 'Alumni';
+      const isI5 = enforcedYear === 'I5';
+      const finalGroupId = isMonitorRole
+        ? currentUserProfile.groupId
+        : isAlumni
+        ? 'Alumni'
+        : isI5
+        ? 'I5'
+        : selectedGroup;
 
       const updatedProfile: UserProfile = {
         ...currentUserProfile,
-        year: selectedYear,
+        year: enforcedYear,
         groupId: finalGroupId,
         isAlumni,
         promotionYear: promotionTag.trim(),
@@ -125,8 +135,8 @@ export function AcademicStatusModal({
       // Save to localStorage cache
       try {
         localStorage.setItem('itc_user_profile', JSON.stringify(updatedProfile));
-        if (!isAlumni && !isI5 && selectedGroup) {
-          localStorage.setItem('itc_my_cohort', selectedGroup);
+        if (!isAlumni && !isI5 && finalGroupId) {
+          localStorage.setItem('itc_my_cohort', finalGroupId);
         }
       } catch {
         // ignore
@@ -198,8 +208,14 @@ export function AcademicStatusModal({
           <BookmarkCheck className="w-5 h-5 text-emerald-400 shrink-0" />
         </div>
 
+        {isMonitorRole && (
+          <div className="p-3 rounded-xl bg-amber-950/40 border border-amber-800/80 text-amber-200 text-xs leading-relaxed">
+            <strong className="text-amber-300">Class Monitor Cohort Lock:</strong> Because your account holds Class Monitor scheduling privileges for <code className="font-mono font-bold text-white">{currentUserProfile.groupId}</code>, your cohort and group assignment are locked to prevent cross-group privilege hopping. Contact a Bongthom Administrator if your assigned cohort needs to be reassigned.
+          </div>
+        )}
+
         {/* 1-Click Progression Helper (If eligible for promotion) */}
-        {nextPromotion && selectedYear === currentUserProfile.year && (
+        {!isMonitorRole && nextPromotion && selectedYear === currentUserProfile.year && (
           <div className="p-3.5 rounded-xl bg-gradient-to-r from-sky-950/60 to-indigo-950/60 border border-sky-800/80 flex items-center justify-between gap-3">
             <div className="space-y-0.5">
               <div className="text-sky-300 text-xs font-bold uppercase tracking-wider">
@@ -229,15 +245,16 @@ export function AcademicStatusModal({
             </label>
             <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 p-1 bg-slate-950 border border-slate-800 rounded-xl">
               {yearOptions.map((opt) => {
-                const isSelected = selectedYear === opt.id;
+                const isSelected = (isMonitorRole ? currentUserProfile.year : selectedYear) === opt.id;
                 const isAlum = opt.id === 'Alumni';
 
                 return (
                   <button
                     key={opt.id}
                     type="button"
+                    disabled={isMonitorRole}
                     onClick={() => handleYearChange(opt.id)}
-                    className={`py-2 px-1 text-center rounded-lg transition-all cursor-pointer font-bold text-xs sm:text-sm ${
+                    className={`py-2 px-1 text-center rounded-lg transition-all font-bold text-xs sm:text-sm ${
                       isSelected
                         ? isAlum
                           ? 'bg-amber-500 text-slate-950 shadow-sm'
@@ -245,7 +262,7 @@ export function AcademicStatusModal({
                         : isAlum
                         ? 'text-amber-400 hover:text-amber-200 hover:bg-slate-850'
                         : 'text-slate-400 hover:text-white hover:bg-slate-850'
-                    }`}
+                    } ${isMonitorRole ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                     title={opt.desc}
                   >
                     <span>{opt.label}</span>
@@ -256,7 +273,7 @@ export function AcademicStatusModal({
           </div>
 
           {/* Conditional: Alumni Honorary Notice vs I5 Capstone Notice vs Class Selector */}
-          {selectedYear === 'Alumni' ? (
+          {(isMonitorRole ? currentUserProfile.year : selectedYear) === 'Alumni' ? (
             <div className="p-4 rounded-xl bg-amber-950/40 border border-amber-800/80 text-amber-200 text-xs sm:text-sm space-y-2 animate-in fade-in duration-150">
               <div className="flex items-center gap-2 font-bold text-amber-300 text-sm">
                 <Award className="w-4 h-4 text-amber-400 shrink-0" />
@@ -266,7 +283,7 @@ export function AcademicStatusModal({
                 Your profile will be recognized as an official ITC Alumni. You can continue accessing all timetables, room directories, faculty schedules, and academic archives anytime.
               </p>
             </div>
-          ) : selectedYear === 'I5' ? (
+          ) : (isMonitorRole ? currentUserProfile.year : selectedYear) === 'I5' ? (
             <div className="p-4 rounded-xl bg-sky-950/40 border border-sky-800/80 text-sky-200 text-xs sm:text-sm space-y-2 animate-in fade-in duration-150">
               <div className="flex items-center gap-2 font-bold text-sky-300 text-sm">
                 <GraduationCap className="w-4 h-4 text-sky-400 shrink-0" />
@@ -279,12 +296,13 @@ export function AcademicStatusModal({
           ) : (
             <div className="space-y-1.5">
               <label className="block text-xs sm:text-sm font-semibold text-slate-300">
-                Class / Specialization Group for {selectedYear} *
+                Class / Specialization Group for {isMonitorRole ? currentUserProfile.year : selectedYear} *
               </label>
               <select
-                value={selectedGroup}
+                value={isMonitorRole ? currentUserProfile.groupId : selectedGroup}
                 onChange={(e) => setSelectedGroup(e.target.value)}
-                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-hidden focus:border-sky-400 cursor-pointer"
+                disabled={isMonitorRole}
+                className="w-full px-3 py-2.5 bg-slate-950 border border-slate-700 rounded-lg text-white font-mono text-sm focus:outline-hidden focus:border-sky-400 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {availableGroups.map((g) => (
                   <option key={g.id} value={g.id}>

@@ -75,16 +75,15 @@ export function SessionDetailModal({
   const isCancelled = Boolean((session as any).isCancelledThisWeek);
   const cancelledData = (session as any).cancelledData as CancelledClassSession | undefined;
 
-  const isMonitorOrAdmin =
-    !isStudentMode ||
-    currentUserProfile?.role === 'monitor' ||
-    currentUserProfile?.role === 'admin';
+  const isMonitorOrAdminForSessionGroup =
+    currentUserProfile?.role === 'admin' ||
+    (currentUserProfile?.role === 'monitor' && currentUserProfile.groupId === session.groupId);
 
   const canDeleteMakeup = makeupData ? canDeleteMakeupBooking(makeupData, currentUserProfile) : false;
   const canRestoreCancelled = cancelledData ? canManageCancelledClass(cancelledData, currentUserProfile) : false;
 
   const handleConfirmCancelRegularClass = () => {
-    if (!onSaveCancelledClass || !session.groupId) return;
+    if (!onSaveCancelledClass || !session.groupId || !isMonitorOrAdminForSessionGroup) return;
     const targetDate = weekBounds.dayDatesMap[session.day];
     const monitorName = currentUserProfile?.displayName
       ? currentUserProfile.displayName
@@ -105,7 +104,6 @@ export function SessionDetailModal({
       room: session.room,
       cancelledBy: monitorName,
       cancelledByUid: currentUserProfile?.uid || '',
-      cancelledByEmail: currentUserProfile?.email || '',
       reason: cancelReason.trim() || 'Cancelled for current week',
       createdAt: new Date().toISOString()
     };
@@ -313,7 +311,7 @@ export function SessionDetailModal({
           {/* ================================================================= */}
           {/* ACTION 1: MARK REGULAR CLASS AS CANCELLED FOR THIS WEEK           */}
           {/* ================================================================= */}
-          {!isMakeup && !isCancelled && isMonitorOrAdmin && onSaveCancelledClass && session.groupId && (
+          {!isMakeup && !isCancelled && isMonitorOrAdminForSessionGroup && onSaveCancelledClass && session.groupId && (
             <div className="pt-3 border-t border-slate-800">
               {!showCancelPrompt ? (
                 <button

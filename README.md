@@ -2,20 +2,35 @@
 
 A web portal for students and class monitors at the Institute of Technology of Cambodia (ITC) International Engineering School.
 
-## Overview
-
-This portal provides centralized schedule access and classroom utility tools for the ITC International Program:
-
-- **Student Portal**: Direct access to cohort timetables (I2, I3, I4), today's agenda, and quick links to Moodle and community Discord.
-- **Class Monitor Portal**: Timetable matrix view, day filters, and makeup class room booking requests.
-- **Free Study Room Finder**: Classroom vacancy tracker for Building A and Building J.
-
 ## Tech Stack
 
 - React 19 + TypeScript
 - Vite
 - Tailwind CSS
+- Firebase Authentication (Google OAuth) & Cloud Firestore
 - Lucide React
+
+## Environment Variables, API Keys & Secrets
+
+Before running or deploying the application, configure your environment variables and keep secret hygiene in mind:
+
+1. **Create your local `.env` file** from the template:
+   ```bash
+   cp .env.example .env
+   ```
+2. **Populate Firebase configuration keys** in `.env`:
+   - `VITE_FIREBASE_API_KEY`
+   - `VITE_FIREBASE_AUTH_DOMAIN`
+   - `VITE_FIREBASE_PROJECT_ID`
+   - `VITE_FIREBASE_STORAGE_BUCKET`
+   - `VITE_FIREBASE_MESSAGING_SENDER_ID`
+   - `VITE_FIREBASE_APP_ID`
+   - `VITE_FIRESTORE_DATABASE_ID`
+3. **Never commit `.env` or secret credentials to Git:**
+   - Anything prefixed with `VITE_` is bundled into the client browser build. Only public Firebase web app identifiers belong in `VITE_*` variables.
+   - **Never** place private service-account keys, admin passwords, OAuth client secrets, or third-party API secrets in `.env` variables prefixed with `VITE_` or anywhere in `src/`.
+   - Access control is enforced server-side via `firestore.rules` and verified Google OAuth tokens—never rely on client-side passwords or `localStorage` flags.
+   - When deploying to production (e.g., Render, Vercel, Cloudflare Pages), configure the `VITE_FIREBASE_*` environment variables directly in your hosting provider's dashboard and ensure your production domain is added to **Firebase Console → Authentication → Settings → Authorized domains**.
 
 ## Local Development
 
@@ -39,9 +54,11 @@ Prerequisites: Node.js (v18 or higher recommended).
 
 4. Open `http://localhost:3000` in your browser.
 
-To verify TypeScript types before committing:
+To verify TypeScript types and Firestore security rules before committing:
 ```bash
 npm run lint
+npx eslint firestore.rules
+npx tsx firestore.rules.test.ts
 ```
 
 ## Contributing

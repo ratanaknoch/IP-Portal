@@ -220,12 +220,16 @@ export function MakeupClassesView({
       ? currentUserProfile.email.split('@')[0]
       : 'Class Monitor';
 
-    const matchedGroup = SCHEDULE_DATA.groups.find(g => g.id === cancelGroup);
+    const enforcedCancelGroup =
+      currentUserProfile?.role === 'monitor' && currentUserProfile.groupId
+        ? currentUserProfile.groupId
+        : cancelGroup;
+    const matchedGroup = SCHEDULE_DATA.groups.find(g => g.id === enforcedCancelGroup);
 
     const newCancel: CancelledClassSession = {
-      id: `cancel-${cancelGroup}-${targetDate}-${targetSession.time.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`,
-      groupId: cancelGroup,
-      cohort: matchedGroup?.cohort || cancelGroup.split('-')[0] || 'I2',
+      id: `cancel-${enforcedCancelGroup}-${targetDate}-${targetSession.time.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now()}`,
+      groupId: enforcedCancelGroup,
+      cohort: matchedGroup?.cohort || enforcedCancelGroup.split('-')[0] || 'I2',
       day: targetSession.day,
       date: targetDate,
       time: targetSession.time,
@@ -235,7 +239,6 @@ export function MakeupClassesView({
       room: targetSession.room,
       cancelledBy: monitorName,
       cancelledByUid: currentUserProfile?.uid || '',
-      cancelledByEmail: currentUserProfile?.email || '',
       reason: cancelReason.trim() || `Cancelled for ${cancelBounds.weekLabel}`,
       createdAt: new Date().toISOString()
     };
@@ -285,6 +288,9 @@ export function MakeupClassesView({
                 <button
                   type="button"
                   onClick={() => {
+                    if (currentUserProfile?.role === 'monitor' && currentUserProfile.groupId) {
+                      setCancelGroup(currentUserProfile.groupId);
+                    }
                     setCancelError('');
                     setSelectedSessionKey('');
                     setCancelReason('');
@@ -1008,12 +1014,13 @@ export function MakeupClassesView({
                     Class / Group *
                   </label>
                   <select
-                    value={cancelGroup}
+                    value={currentUserProfile?.role === 'monitor' && currentUserProfile.groupId ? currentUserProfile.groupId : cancelGroup}
                     onChange={(e) => {
                       setCancelGroup(e.target.value);
                       setSelectedSessionKey('');
                     }}
-                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white font-mono cursor-pointer"
+                    disabled={currentUserProfile?.role === 'monitor'}
+                    className="w-full px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white font-mono cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {SCHEDULE_DATA.groups.map(g => (
                       <option key={g.id} value={g.id}>

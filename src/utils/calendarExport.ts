@@ -55,12 +55,25 @@ function formatIcsDateTime(date: Date, minutesFromMidnight: number): string {
 }
 
 /**
+ * Escapes RFC 5545 text values and strips CR/LF characters to prevent iCalendar property injection
+ */
+function escapeIcsText(value: string): string {
+  return String(value || '')
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .trim();
+}
+
+/**
  * Generates an RFC 5545 compliant .ics calendar string for a group's schedule.
  * Recurrence covers Semester 1 until March 1, 2027.
  */
 export function generateIcsCalendar(group: GroupSchedule): string {
   const untilDateStr = '20270301T000000Z';
   const nowStr = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const safeGroupId = escapeIcsText(group.id).replace(/[^a-zA-Z0-9_-]/g, '');
 
   const events = group.schedule.map((session, index) => {
     const [startMin, endMin] = parseSlotMinutes(session.time);
@@ -68,11 +81,18 @@ export function generateIcsCalendar(group: GroupSchedule): string {
     const dtStart = formatIcsDateTime(firstDate, startMin);
     const dtEnd = formatIcsDateTime(firstDate, endMin);
     const byDay = getDayAbbr(session.day);
-    const uid = `itc-${group.id}-${session.day}-${startMin}-${index}@ccun.edu.kh`;
+    const uid = `itc-${safeGroupId}-${session.day}-${startMin}-${index}@ccun.edu.kh`;
 
-    const summary = `[${group.id}] ${session.course} (${session.type})`;
-    const description = `Course: ${session.course}\\nType: ${session.type}\\nLecturer: ${session.lecturer}\\nRoom: ${session.room}\\nCohort: ${group.name}\\nInstitution: Institute of Technology of Cambodia (ITC)`;
-    const location = `${session.room}, ITC Campus, Phnom Penh, Cambodia`;
+    const summary = escapeIcsText(`[${group.id}] ${session.course} (${session.type})`);
+    const description = [
+      `Course: ${escapeIcsText(session.course)}`,
+      `Type: ${escapeIcsText(session.type)}`,
+      `Lecturer: ${escapeIcsText(session.lecturer)}`,
+      `Room: ${escapeIcsText(session.room)}`,
+      `Cohort: ${escapeIcsText(group.name)}`,
+      'Institution: Institute of Technology of Cambodia (ITC)'
+    ].join('\\n');
+    const location = escapeIcsText(`${session.room}, ITC Campus, Phnom Penh, Cambodia`);
 
     return [
       'BEGIN:VEVENT',
@@ -96,7 +116,7 @@ export function generateIcsCalendar(group: GroupSchedule): string {
     'PRODID:-//Institute of Technology of Cambodia//Timetable Portal//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    `X-WR-CALNAME:ITC ${group.id} Schedule`,
+    `X-WR-CALNAME:ITC ${escapeIcsText(group.id)} Schedule`,
     'X-WR-TIMEZONE:Asia/Phnom_Penh',
     'BEGIN:VTIMEZONE',
     'TZID:Asia/Phnom_Penh',

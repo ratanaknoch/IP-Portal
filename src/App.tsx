@@ -37,6 +37,7 @@ import {
   auth,
   getUserProfile,
   saveUserProfile,
+  subscribeToUserProfile,
   logoutUser,
   subscribeToNotifications,
   UserProfile,
@@ -110,44 +111,13 @@ export default function App() {
     }
     return 'student';
   });
-  const [activeMonitorGen, setActiveMonitorGen] = useState<string>('Bigboss@67');
+  // User Profile & Firebase Auth state (always re-verified against Firebase Auth on mount)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  // Monitor authorization state (persisted in sessionStorage)
-  const [isMonitorAuthorized, setIsMonitorAuthorized] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem('itc_monitor_authorized') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const handleAuthorizeMonitor = (genPassword: string) => {
-    setIsMonitorAuthorized(true);
-    setActiveMonitorGen(genPassword);
-    try {
-      sessionStorage.setItem('itc_monitor_authorized', 'true');
-      sessionStorage.setItem('itc_monitor_gen', genPassword);
-    } catch {
-      // ignore
-    }
-  };
-
-  // User Profile & Firebase Auth state
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
-    try {
-      const adminStored = localStorage.getItem('itc_admin_auth');
-      if (adminStored) {
-        return JSON.parse(adminStored);
-      }
-      const userStored = localStorage.getItem('itc_user_profile');
-      if (userStored) {
-        return JSON.parse(userStored);
-      }
-    } catch {
-      // ignore
-    }
-    return null;
-  });
+  // Monitor authorization strictly derived from server-verified userProfile role
+  const isMonitorAuthorized = Boolean(
+    userProfile && (userProfile.role === 'monitor' || userProfile.role === 'admin')
+  );
 
   const [pendingFirebaseUser, setPendingFirebaseUser] = useState<{
     uid: string;
@@ -360,20 +330,30 @@ export default function App() {
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/rooms' || cleanPath === '/room') {
       setCurrentView('schedule');
-      setActiveMode('room');
-      setPortalRole('class-monitor');
-      try {
-        localStorage.setItem('itc_portal_role', 'class-monitor');
-      } catch {}
+      if (isMonitorAuthorized) {
+        setActiveMode('room');
+        setPortalRole('class-monitor');
+        try {
+          localStorage.setItem('itc_portal_role', 'class-monitor');
+        } catch {}
+      } else {
+        setActiveMode('matrix');
+        setPortalRole('student');
+      }
       setIsFreeRoomsOpen(false);
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/lecturers' || cleanPath === '/lecturer') {
       setCurrentView('schedule');
-      setActiveMode('lecturer');
-      setPortalRole('class-monitor');
-      try {
-        localStorage.setItem('itc_portal_role', 'class-monitor');
-      } catch {}
+      if (isMonitorAuthorized) {
+        setActiveMode('lecturer');
+        setPortalRole('class-monitor');
+        try {
+          localStorage.setItem('itc_portal_role', 'class-monitor');
+        } catch {}
+      } else {
+        setActiveMode('matrix');
+        setPortalRole('student');
+      }
       setIsFreeRoomsOpen(false);
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/agenda' || cleanPath === '/daily') {
@@ -392,10 +372,16 @@ export default function App() {
       setIsFreeRoomsOpen(false);
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/free-rooms') {
-      setIsFreeRoomsOpen(true);
+      if (userProfile || auth.currentUser) {
+        setIsFreeRoomsOpen(true);
+      } else {
+        setIsAuthModalOpen(true);
+      }
     } else if (cleanPath === '/booking' || cleanPath === '/makeup') {
-      setIsBookingModalOpen(true);
       setCurrentView('schedule');
+      if (isMonitorAuthorized) {
+        setIsBookingModalOpen(true);
+      }
     } else if (cleanPath === '/login' || cleanPath === '/auth') {
       setCurrentView(prev => (prev === 'schedule' ? 'schedule' : 'landing'));
       setIsAuthModalOpen(true);
@@ -415,7 +401,7 @@ export default function App() {
       setIsBookingModalOpen(false);
       setIsAuthModalOpen(false);
     }
-  }, []);
+  }, [isMonitorAuthorized, userProfile]);
 
   // Listen to popstate and hashchange (browser back/forward or URL hash navigation)
   useEffect(() => {
@@ -478,9 +464,15 @@ export default function App() {
     }
   });
 
-  // Subscribe to real-time updates from Firebase Firestore across all devices
+  // Subscribe to real-time updates from Firebase Firestore when authenticated
   useEffect(() => {
     testFirestoreConnection();
+    if (!userProfile || !auth.currentUser) {
+      setMakeupBookings([]);
+      setCancelledClasses([]);
+      return;
+    }
+
     const unsubscribeBookings = subscribeToMakeupBookings((remoteBookings) => {
       // Filter out any expired bookings from state (resets every Sunday)
       const active = remoteBookings.filter(b => !isBookingExpired(b));
@@ -493,12 +485,13 @@ export default function App() {
         // ignore
       }
 
-      // Auto-delete expired bookings from Firestore so stale sessions never linger after Sunday reset
-      if (expired.length > 0) {
+      // Only attempt cloud auto-delete of expired bookings if signed in as admin or owning monitor
+      if (expired.length > 0 && auth.currentUser) {
+        const currentUid = auth.currentUser.uid;
         for (const exp of expired) {
-          deleteMakeupBooking(exp.id).catch(err => {
-            console.warn('Auto-deleted expired booking locally, cloud sync deferred:', err);
-          });
+          if (exp.bookedByUid === currentUid) {
+            deleteMakeupBooking(exp.id).catch(() => {});
+          }
         }
       }
     });
@@ -514,16 +507,17 @@ export default function App() {
         // ignore
       }
 
-      if (expired.length > 0) {
+      if (expired.length > 0 && auth.currentUser) {
+        const currentUid = auth.currentUser.uid;
         for (const exp of expired) {
-          deleteCancelledClass(exp.id).catch(err => {
-            console.warn('Auto-deleted expired cancelled class locally, cloud sync deferred:', err);
-          });
+          if (exp.cancelledByUid === currentUid) {
+            deleteCancelledClass(exp.id).catch(() => {});
+          }
         }
       }
     });
 
-    // Background interval to check for Sunday weekly reset & expire old weeks
+    // Background interval to check for Sunday weekly reset & expire old weeks locally
     const expiryInterval = setInterval(() => {
       setMakeupBookings(prev => {
         const expired = prev.filter(b => isBookingExpired(b));
@@ -536,8 +530,13 @@ export default function App() {
           // ignore
         }
 
-        for (const exp of expired) {
-          deleteMakeupBooking(exp.id).catch(() => {});
+        if (auth.currentUser) {
+          const currentUid = auth.currentUser.uid;
+          for (const exp of expired) {
+            if (exp.bookedByUid === currentUid) {
+              deleteMakeupBooking(exp.id).catch(() => {});
+            }
+          }
         }
         return active;
       });
@@ -553,8 +552,13 @@ export default function App() {
           // ignore
         }
 
-        for (const exp of expired) {
-          deleteCancelledClass(exp.id).catch(() => {});
+        if (auth.currentUser) {
+          const currentUid = auth.currentUser.uid;
+          for (const exp of expired) {
+            if (exp.cancelledByUid === currentUid) {
+              deleteCancelledClass(exp.id).catch(() => {});
+            }
+          }
         }
         return active;
       });
@@ -565,84 +569,96 @@ export default function App() {
       unsubscribeCancelled();
       clearInterval(expiryInterval);
     };
-  }, []);
+  }, [userProfile?.uid]);
 
-  // Listen to Firebase Auth state
+  // Listen to Firebase Auth state & live Firestore UserProfile updates
   useEffect(() => {
+    let unsubscribeProfile: (() => void) | null = null;
+
+    // Purge any legacy client-side privilege escalation keys
+    try {
+      localStorage.removeItem('itc_admin_auth');
+      sessionStorage.removeItem('itc_monitor_authorized');
+      sessionStorage.removeItem('itc_monitor_gen');
+    } catch {
+      // ignore
+    }
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (fbUser) => {
-      const adminStored = localStorage.getItem('itc_admin_auth');
-      if (adminStored) {
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+
+      if (!fbUser) {
+        setUserProfile(null);
+        setPendingFirebaseUser(null);
+        setMakeupBookings([]);
+        setCancelledClasses([]);
         try {
-          const parsedAdmin = JSON.parse(adminStored);
-          setUserProfile(parsedAdmin);
-          setIsMonitorAuthorized(true);
-          setIsOnboardingModalOpen(false);
-          setPendingFirebaseUser(null);
-          return;
+          localStorage.removeItem('itc_user_profile');
+          localStorage.removeItem('itc_admin_auth');
+          localStorage.removeItem('itc_makeup_bookings');
+          localStorage.removeItem('itc_cancelled_classes');
+          sessionStorage.removeItem('itc_monitor_authorized');
         } catch {
           // ignore
         }
+        return;
       }
 
-      if (fbUser) {
-        try {
-          const profile = await getUserProfile(fbUser.uid);
-          if (profile && (profile.onboardingCompleted || profile.groupId)) {
-            setUserProfile(profile);
+      try {
+        const profile = await getUserProfile(fbUser.uid);
+        if (profile && (profile.onboardingCompleted || profile.groupId)) {
+          setUserProfile(profile);
+          try {
             localStorage.setItem('itc_user_profile', JSON.stringify(profile));
-            setIsOnboardingModalOpen(false);
-            setPendingFirebaseUser(null);
-            if (profile.groupId) {
-              setMyCohort(profile.groupId);
-              setSelectedGroup(profile.groupId);
-              const grp = SCHEDULE_DATA.groups.find(g => g.id === profile.groupId);
-              if (grp) setSelectedCohort(grp.cohort);
-            }
-            if (profile.role === 'monitor' || profile.role === 'admin') {
-              setIsMonitorAuthorized(true);
-              sessionStorage.setItem('itc_monitor_authorized', 'true');
-            } else {
-              setIsMonitorAuthorized(false);
-              sessionStorage.removeItem('itc_monitor_authorized');
-              setPortalRole('student');
+          } catch {}
+          setIsOnboardingModalOpen(false);
+          setPendingFirebaseUser(null);
+          if (profile.groupId) {
+            setMyCohort(profile.groupId);
+            setSelectedGroup(profile.groupId);
+            const grp = SCHEDULE_DATA.groups.find(g => g.id === profile.groupId);
+            if (grp) setSelectedCohort(grp.cohort);
+          }
+          if (profile.role !== 'monitor' && profile.role !== 'admin') {
+            setPortalRole('student');
+            try {
               localStorage.setItem('itc_portal_role', 'student');
-            }
-          } else {
-            // Check local cache before assuming new user
-            const cached = localStorage.getItem('itc_user_profile');
-            let hasValidCache = false;
-            if (cached) {
-              try {
-                const parsed = JSON.parse(cached);
-                if (parsed && (parsed.uid === fbUser.uid || parsed.email === fbUser.email) && (parsed.onboardingCompleted || parsed.groupId)) {
-                  const restored = { ...parsed, uid: fbUser.uid };
-                  setUserProfile(restored);
-                  setIsOnboardingModalOpen(false);
-                  setPendingFirebaseUser(null);
-                  hasValidCache = true;
-                  saveUserProfile(restored).catch(() => {});
-                }
-              } catch {
-                // ignore
-              }
-            }
+            } catch {}
+          }
+        } else {
+          setPendingFirebaseUser({
+            uid: fbUser.uid,
+            email: fbUser.email,
+            displayName: fbUser.displayName
+          });
+          setIsOnboardingModalOpen(true);
+        }
 
-            if (!hasValidCache) {
-              setPendingFirebaseUser({
-                uid: fbUser.uid,
-                email: fbUser.email,
-                displayName: fbUser.displayName
-              });
-              setIsOnboardingModalOpen(true);
+        // Subscribe to real-time role/cohort updates from Firestore
+        unsubscribeProfile = subscribeToUserProfile(fbUser.uid, (liveProfile) => {
+          if (liveProfile && (liveProfile.onboardingCompleted || liveProfile.groupId)) {
+            setUserProfile(liveProfile);
+            try {
+              localStorage.setItem('itc_user_profile', JSON.stringify(liveProfile));
+            } catch {}
+            if (liveProfile.role !== 'monitor' && liveProfile.role !== 'admin') {
+              setPortalRole('student');
+              try {
+                localStorage.setItem('itc_portal_role', 'student');
+              } catch {}
             }
           }
-        } catch (err) {
-          console.warn('Could not fetch user profile:', err);
-        }
+        });
+      } catch (err) {
+        console.warn('Could not fetch user profile:', err);
       }
     });
 
     return () => {
+      if (unsubscribeProfile) unsubscribeProfile();
       unsubscribeAuth();
     };
   }, []);
@@ -730,6 +746,7 @@ export default function App() {
     : 0;
 
   const handleSaveMakeupBooking = async (booking: MakeupClassBooking) => {
+    const previousBookings = makeupBookings;
     setMakeupBookings(prev => {
       const updated = [booking, ...prev.filter(b => b.id !== booking.id)];
       try {
@@ -743,11 +760,16 @@ export default function App() {
     try {
       await saveMakeupBooking(booking, userProfile);
     } catch (err) {
-      console.warn('Booking saved in local cache, cloud sync deferred:', err);
+      console.warn('Make-up booking rejected by Firestore security rules; rolling back local state:', err);
+      setMakeupBookings(previousBookings);
+      try {
+        localStorage.setItem('itc_makeup_bookings', JSON.stringify(previousBookings));
+      } catch {}
     }
   };
 
   const handleDeleteMakeupBooking = async (id: string) => {
+    const previousBookings = makeupBookings;
     setMakeupBookings(prev => {
       const updated = prev.filter(b => b.id !== id);
       try {
@@ -761,11 +783,16 @@ export default function App() {
     try {
       await deleteMakeupBooking(id);
     } catch (err) {
-      console.warn('Booking removed locally, cloud sync deferred:', err);
+      console.warn('Make-up booking deletion rejected by Firestore security rules; rolling back local state:', err);
+      setMakeupBookings(previousBookings);
+      try {
+        localStorage.setItem('itc_makeup_bookings', JSON.stringify(previousBookings));
+      } catch {}
     }
   };
 
   const handleSaveCancelledClass = async (cancelled: CancelledClassSession) => {
+    const previousCancelled = cancelledClasses;
     setCancelledClasses(prev => {
       const updated = [cancelled, ...prev.filter(c => c.id !== cancelled.id)];
       try {
@@ -779,11 +806,16 @@ export default function App() {
     try {
       await saveCancelledClass(cancelled, userProfile);
     } catch (err) {
-      console.warn('Cancelled class saved in local cache, cloud sync deferred:', err);
+      console.warn('Cancelled class write rejected by Firestore security rules; rolling back local state:', err);
+      setCancelledClasses(previousCancelled);
+      try {
+        localStorage.setItem('itc_cancelled_classes', JSON.stringify(previousCancelled));
+      } catch {}
     }
   };
 
   const handleDeleteCancelledClass = async (id: string) => {
+    const previousCancelled = cancelledClasses;
     setCancelledClasses(prev => {
       const updated = prev.filter(c => c.id !== id);
       try {
@@ -797,7 +829,11 @@ export default function App() {
     try {
       await deleteCancelledClass(id);
     } catch (err) {
-      console.warn('Cancelled class removed locally, cloud sync deferred:', err);
+      console.warn('Cancelled class restore rejected by Firestore security rules; rolling back local state:', err);
+      setCancelledClasses(previousCancelled);
+      try {
+        localStorage.setItem('itc_cancelled_classes', JSON.stringify(previousCancelled));
+      } catch {}
     }
   };
 
@@ -815,7 +851,6 @@ export default function App() {
     setUserProfile(null);
     setNotifications([]);
     setIsInboxOpen(false);
-    setIsMonitorAuthorized(false);
     setIsLoggingOut(false);
     setCurrentView('landing');
     navigateTo('/', true);
@@ -823,35 +858,27 @@ export default function App() {
 
   const handleAdminLoginSuccess = async (adminProfile: UserProfile) => {
     setUserProfile(adminProfile);
-    setIsMonitorAuthorized(true);
-    localStorage.setItem('itc_admin_auth', JSON.stringify(adminProfile));
-    sessionStorage.setItem('itc_monitor_authorized', 'true');
+    try {
+      localStorage.setItem('itc_user_profile', JSON.stringify(adminProfile));
+    } catch {}
     setIsAuthModalOpen(false);
     setCurrentView('landing');
     setIsAdminDashboardOpen(true);
-    try {
-      await saveUserProfile(adminProfile);
-    } catch {
-      // ignore
-    }
     navigateTo('/');
   };
 
   const handleGoogleLoginSuccess = (profile: UserProfile | null, isNewUser: boolean) => {
     setIsAuthModalOpen(false);
-    // If profile already exists or is loaded in state/cache, proceed directly without onboarding
     const effectiveProfile = profile || userProfile;
     if (effectiveProfile && (effectiveProfile.onboardingCompleted || effectiveProfile.groupId)) {
       setUserProfile(effectiveProfile);
-      localStorage.setItem('itc_user_profile', JSON.stringify(effectiveProfile));
+      try {
+        localStorage.setItem('itc_user_profile', JSON.stringify(effectiveProfile));
+      } catch {}
       setIsOnboardingModalOpen(false);
       setPendingFirebaseUser(null);
       if (effectiveProfile.groupId) {
         handleSetMyCohort(effectiveProfile.groupId);
-      }
-      if (effectiveProfile.role === 'monitor' || effectiveProfile.role === 'admin') {
-        setIsMonitorAuthorized(true);
-        sessionStorage.setItem('itc_monitor_authorized', 'true');
       }
       navigateTo(currentView === 'landing' ? '/' : '/schedule');
       return;
@@ -868,15 +895,13 @@ export default function App() {
       setIsOnboardingModalOpen(true);
     } else {
       setUserProfile(profile);
-      localStorage.setItem('itc_user_profile', JSON.stringify(profile));
+      try {
+        localStorage.setItem('itc_user_profile', JSON.stringify(profile));
+      } catch {}
       setIsOnboardingModalOpen(false);
       setPendingFirebaseUser(null);
       if (profile.groupId) {
         handleSetMyCohort(profile.groupId);
-      }
-      if (profile.role === 'monitor' || profile.role === 'admin') {
-        setIsMonitorAuthorized(true);
-        sessionStorage.setItem('itc_monitor_authorized', 'true');
       }
       navigateTo(currentView === 'landing' ? '/' : '/schedule');
     }
@@ -884,14 +909,11 @@ export default function App() {
 
   const handleCompleteOnboarding = (profile: UserProfile) => {
     setUserProfile(profile);
-    localStorage.setItem('itc_user_profile', JSON.stringify(profile));
+    try {
+      localStorage.setItem('itc_user_profile', JSON.stringify(profile));
+    } catch {}
     if (profile.groupId) {
       handleSetMyCohort(profile.groupId);
-    }
-    if (profile.role === 'monitor' || profile.role === 'admin') {
-      setIsMonitorAuthorized(true);
-      sessionStorage.setItem('itc_monitor_authorized', 'true');
-      setActiveMonitorGen('Bigboss@67');
     }
     setIsOnboardingModalOpen(false);
     setIsAuthModalOpen(false);
@@ -899,19 +921,6 @@ export default function App() {
 
     // Directly auto sign in with the signed up account into student schedule
     handleEnterStudentSchedule(profile.groupId, profile);
-  };
-
-  const handleUpgradeToMonitor = async (password: string): Promise<boolean> => {
-    if (password === 'Bigboss@67' && userProfile) {
-      const updated: UserProfile = { ...userProfile, role: 'monitor' };
-      setUserProfile(updated);
-      await saveUserProfile(updated);
-      localStorage.setItem('itc_user_profile', JSON.stringify(updated));
-      setIsMonitorAuthorized(true);
-      sessionStorage.setItem('itc_monitor_authorized', 'true');
-      return true;
-    }
-    return false;
   };
 
   const handleUpdateAcademicStatus = (updatedProfile: UserProfile) => {
@@ -939,21 +948,9 @@ export default function App() {
   // Active group object
   const activeGroupObj = SCHEDULE_DATA.groups.find(g => g.id === selectedGroup) || SCHEDULE_DATA.groups[0];
 
-  // Auth Guard (with cache verification before redirect)
+  // Auth Guard (strictly requires active Firebase Auth session, never trusts unverified localStorage alone)
   useEffect(() => {
-    if (!userProfile && currentView === 'schedule') {
-      try {
-        const stored = localStorage.getItem('itc_user_profile');
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed && (parsed.onboardingCompleted || parsed.groupId)) {
-            setUserProfile(parsed);
-            return;
-          }
-        }
-      } catch {
-        // ignore
-      }
+    if (!userProfile && !auth.currentUser && currentView === 'schedule') {
       setCurrentView('landing');
       setIsAuthModalOpen(true);
       navigateTo('/login');
@@ -993,15 +990,17 @@ export default function App() {
     navigateTo(`/schedule?portal=student&group=${groupToSelect}`);
   };
 
-  // Handler to enter Class Monitor Portal
-  const handleEnterClassMonitor = (genPassword?: string, profileOverride?: UserProfile | null) => {
+  // Handler to enter Class Monitor Portal (strictly requires monitor or admin role)
+  const handleEnterClassMonitor = (_genPassword?: string, profileOverride?: UserProfile | null) => {
     const activeUser = profileOverride !== undefined ? profileOverride : userProfile;
     if (!activeUser) {
       setIsAuthModalOpen(true);
       navigateTo('/login');
       return;
     }
-    if (genPassword) setActiveMonitorGen(genPassword);
+    if (activeUser.role !== 'monitor' && activeUser.role !== 'admin') {
+      return;
+    }
     setPortalRole('class-monitor');
     try {
       localStorage.setItem('itc_portal_role', 'class-monitor');
@@ -1076,7 +1075,6 @@ export default function App() {
           myCohort={myCohort}
           onSelectMyCohort={handleSetMyCohort}
           isMonitorAuthorized={isMonitorAuthorized}
-          onAuthorizeMonitor={handleAuthorizeMonitor}
           userProfile={userProfile}
           unreadNotificationsCount={unreadNotificationsCount}
           onOpenAuthModal={() => {
@@ -1086,7 +1084,6 @@ export default function App() {
           onOpenInbox={() => setIsInboxOpen(true)}
           onOpenAdminDashboard={() => setIsAdminDashboardOpen(true)}
           onLogout={handleTriggerLogout}
-          onUpgradeToMonitor={handleUpgradeToMonitor}
           onOpenAcademicStatus={() => {
             if (!userProfile) {
               setIsAuthModalOpen(true);
@@ -1441,20 +1438,21 @@ export default function App() {
         cancelledClasses={cancelledClasses}
       />
 
-      {/* Make-up Class Room Booking Modal */}
-      <MakeupClassBookingModal
-        isOpen={isBookingModalOpen}
-        onClose={() => {
-          setIsBookingModalOpen(false);
-          navigateTo(activeMode === 'room' ? '/rooms' : activeMode === 'makeup' ? '/makeup-classes' : '/schedule');
-        }}
-        onSaveBooking={handleSaveMakeupBooking}
-        onDeleteBooking={handleDeleteMakeupBooking}
-        activeMonitorGen={activeMonitorGen}
-        existingBookings={makeupBookings}
-        cancelledClasses={cancelledClasses}
-        currentUserProfile={userProfile}
-      />
+      {/* Make-up Class Room Booking Modal (Restricted to Monitor or Admin) */}
+      {isMonitorOrAdmin && (
+        <MakeupClassBookingModal
+          isOpen={isBookingModalOpen}
+          onClose={() => {
+            setIsBookingModalOpen(false);
+            navigateTo(activeMode === 'room' ? '/rooms' : activeMode === 'makeup' ? '/makeup-classes' : '/schedule');
+          }}
+          onSaveBooking={handleSaveMakeupBooking}
+          onDeleteBooking={handleDeleteMakeupBooking}
+          existingBookings={makeupBookings}
+          cancelledClasses={cancelledClasses}
+          currentUserProfile={userProfile}
+        />
+      )}
 
       {/* Academic Status & Year Promotion Modal in Schedule View */}
       {showClassChangeModal && userProfile ? (

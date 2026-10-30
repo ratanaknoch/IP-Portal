@@ -2,8 +2,7 @@ import { initializeApp } from 'firebase/app';
 import { 
   getFirestore, 
   initializeFirestore,
-  persistentLocalCache,
-  persistentMultipleTabManager,
+  memoryLocalCache,
   collection, 
   doc, 
   setDoc, 
@@ -15,6 +14,7 @@ import {
   updateDoc,
   arrayUnion,
   query,
+  where,
   orderBy,
   limit,
   startAfter,
@@ -32,7 +32,18 @@ import {
 } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
 import { MakeupClassBooking, CancelledClassSession, MakeupSessionType } from '../components/MakeupClassBookingModal';
-import { SessionType } from '../data/scheduleData';
+import { SessionType, SCHEDULE_DATA } from '../data/scheduleData';
+
+export const BOOTSTRAPPED_ADMIN_EMAIL = 'ratanaknochmunny@gmail.com';
+
+const ISO_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z$/;
+
+export function ensureIsoTimestamp(ts?: string): string {
+  if (typeof ts === 'string' && ISO_TIMESTAMP_REGEX.test(ts.trim()) && ts.trim().length <= 64) {
+    return ts.trim();
+  }
+  return new Date().toISOString();
+}
 
 // Resolve configuration: fallback between bundled config and VITE_ environment variables
 const activeFirebaseConfig = {
@@ -48,31 +59,27 @@ const activeFirebaseConfig = {
 // Initialize Firebase App
 const app = initializeApp(activeFirebaseConfig);
 
-// Initialize Auth & Firestore with multi-tab persistent IndexedDB caching
+// Initialize Auth & Firestore with volatile in-memory cache to prevent shared-workstation IndexedDB leakage
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({ prompt: 'select_account' });
 
-function initFirestoreWithPersistentCache() {
+function initFirestoreWithMemoryCache() {
   const dbId = activeFirebaseConfig.firestoreDatabaseId;
   try {
-    if (typeof window !== 'undefined' && 'indexedDB' in window) {
-      const cacheSettings = {
-        localCache: persistentLocalCache({
-          tabManager: persistentMultipleTabManager()
-        })
-      };
-      return dbId 
-        ? initializeFirestore(app, cacheSettings, dbId)
-        : initializeFirestore(app, cacheSettings);
-    }
+    const cacheSettings = {
+      localCache: memoryLocalCache()
+    };
+    return dbId 
+      ? initializeFirestore(app, cacheSettings, dbId)
+      : initializeFirestore(app, cacheSettings);
   } catch (err) {
-    console.warn('Persistent IndexedDB cache fallback to standard firestore instance:', err);
+    console.warn('In-memory cache fallback to standard firestore instance:', err);
   }
   return dbId ? getFirestore(app, dbId) : getFirestore(app);
 }
 
-export const db = initFirestoreWithPersistentCache();
+export const db = initFirestoreWithMemoryCache();
 
 // User Profile Types
 export type UserRole = 'student' | 'monitor' | 'admin';
@@ -97,12 +104,45 @@ export interface AppNotification {
   title: string;
   message: string;
   audience: 'all' | 'monitors' | 'students';
+  senderUid?: string;
   senderName?: string;
   senderRole?: string;
   type: 'announcement' | 'class_booking' | 'system';
   createdAt: string;
   readBy?: string[];
   clearedBy?: string[];
+}
+
+// ==========================================
+// Defensive Payload Sanitization Helpers
+// ==========================================
+
+function sanitizeDocId(id: string, prefix: string): string {
+  const cleaned = (id || '').replace(/[^a-zA-Z0-9_\-]/g, '_').slice(0, 128);
+  return cleaned.length > 0 ? cleaned : `${prefix}_${Date.now()}`;
+}
+
+export function sanitizeUserProfilePayload(profile: UserProfile): UserProfile {
+  const validRoles: UserRole[] = ['student', 'monitor', 'admin'];
+  const validYears: AcademicYear[] = ['I1', 'I2', 'I3', 'I4', 'I5', 'Alumni', 'Admin', 'None'];
+  const sanitized: UserProfile = {
+    uid: String(profile.uid || '').trim().slice(0, 128),
+    email: String(profile.email || 'student@itc.edu.kh').trim().toLowerCase().slice(0, 150),
+    displayName: String(profile.displayName || 'ITC Student').trim().slice(0, 100) || 'ITC Student',
+    role: validRoles.includes(profile.role) ? profile.role : 'student',
+    year: validYears.includes(profile.year) ? profile.year : 'I1',
+    groupId: String(profile.groupId || 'I1-G1').trim().slice(0, 50) || 'I1-G1',
+    onboardingCompleted: Boolean(profile.onboardingCompleted ?? true),
+    createdAt: ensureIsoTimestamp(profile.createdAt),
+    updatedAt: ensureIsoTimestamp()
+  };
+  if (typeof profile.promotionYear === 'string' && profile.promotionYear.trim().length > 0) {
+    sanitized.promotionYear = profile.promotionYear.trim().slice(0, 80);
+  }
+  if (typeof profile.isAlumni === 'boolean') {
+    sanitized.isAlumni = profile.isAlumni;
+  }
+  return sanitized;
 }
 
 // Test connection on boot per Firestore specification
@@ -174,49 +214,86 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 export async function loginWithGoogle(): Promise<{ user: FirebaseUser; profile: UserProfile | null; isNew: boolean }> {
   try {
     const result = await signInWithPopup(auth, googleProvider);
+    const fbUser = result.user;
+    const isRootAdminEmail =
+      fbUser.emailVerified &&
+      fbUser.email?.toLowerCase() === BOOTSTRAPPED_ADMIN_EMAIL.toLowerCase();
+
     let profile: UserProfile | null = null;
     try {
-      const userDoc = await getDoc(doc(db, 'users', result.user.uid));
+      const userDoc = await getDoc(doc(db, 'users', fbUser.uid));
       if (userDoc.exists()) {
         const data = userDoc.data() as UserProfile;
         if (data && (data.onboardingCompleted || data.groupId)) {
           profile = data;
+          // Ensure bootstrapped admin always has admin role persisted in Firestore
+          if (isRootAdminEmail && profile.role !== 'admin') {
+            profile = sanitizeUserProfilePayload({
+              ...profile,
+              role: 'admin'
+            });
+            await setDoc(doc(db, 'users', fbUser.uid), profile);
+          }
         }
+      } else if (isRootAdminEmail) {
+        // Automatically provision root administrator profile on first Google Sign-In
+        const rootAdminProfile = sanitizeUserProfilePayload({
+          uid: fbUser.uid,
+          email: fbUser.email || BOOTSTRAPPED_ADMIN_EMAIL,
+          displayName: fbUser.displayName || 'Root Bongthom Admin',
+          role: 'admin',
+          year: 'Admin',
+          groupId: 'I2-SE',
+          onboardingCompleted: true,
+          createdAt: ensureIsoTimestamp()
+        });
+        await setDoc(doc(db, 'users', fbUser.uid), rootAdminProfile);
+        profile = rootAdminProfile;
       }
     } catch (e) {
       console.warn('Could not fetch user document directly on login:', e);
     }
 
-    // Secondary fallback: check local cached profile
-    if (!profile) {
-      try {
-        const cached = localStorage.getItem('itc_user_profile');
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && (parsed.uid === result.user.uid || parsed.email === result.user.email) && (parsed.onboardingCompleted || parsed.groupId)) {
-            profile = { ...parsed, uid: result.user.uid };
-            setDoc(doc(db, 'users', result.user.uid), profile, { merge: true }).catch(() => {});
-          }
-        }
-      } catch {
-        // ignore
-      }
-    }
-
     const isNew = !profile;
-    return { user: result.user, profile, isNew };
+    return { user: fbUser, profile, isNew };
   } catch (err: any) {
     console.error('Google Sign In Error:', err);
     throw err;
   }
 }
 
-export async function logoutUser(): Promise<void> {
+export function purgeSessionStorageArtifacts(): void {
   try {
-    localStorage.removeItem('itc_admin_auth');
-    localStorage.removeItem('itc_user_profile');
+    const explicitKeys = [
+      'itc_admin_auth',
+      'itc_user_profile',
+      'itc_portal_role',
+      'itc_makeup_bookings',
+      'itc_cancelled_classes'
+    ];
+    for (const key of explicitKeys) {
+      localStorage.removeItem(key);
+    }
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('itc_cleared_notifs_')) {
+        keysToRemove.push(k);
+      }
+    }
+    for (const k of keysToRemove) {
+      localStorage.removeItem(k);
+    }
     sessionStorage.removeItem('itc_monitor_authorized');
     sessionStorage.removeItem('itc_monitor_gen');
+  } catch {
+    // ignore storage access errors
+  }
+}
+
+export async function logoutUser(): Promise<void> {
+  try {
+    purgeSessionStorageArtifacts();
     await fbSignOut(auth);
   } catch (err) {
     console.error('Logout error:', err);
@@ -239,42 +316,69 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   } catch (error) {
     console.warn('Could not fetch user profile from Firestore:', error);
   }
-
-  try {
-    const cached = localStorage.getItem('itc_user_profile');
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed && parsed.uid === uid && (parsed.onboardingCompleted || parsed.groupId)) {
-        return parsed;
-      }
-    }
-  } catch {}
-
   return null;
 }
 
-export async function saveUserProfile(profile: UserProfile): Promise<void> {
-  const fullProfile: UserProfile = {
-    ...profile,
-    onboardingCompleted: true,
-    updatedAt: new Date().toISOString()
-  };
+export async function findUserByEmail(email: string): Promise<UserProfile | null> {
+  const normalizedEmail = (email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
   try {
-    await setDoc(doc(db, 'users', profile.uid), fullProfile, { merge: true });
+    const q = query(
+      collection(db, 'users'),
+      where('email', '==', normalizedEmail),
+      limit(1)
+    );
+    const snap = await getDocs(q);
+    if (!snap.empty) {
+      return snap.docs[0].data() as UserProfile;
+    }
   } catch (error) {
-    console.warn('Firestore write warning:', error);
+    console.warn('Could not lookup user by email:', error);
   }
+  return null;
+}
+
+export function subscribeToUserProfile(
+  uid: string,
+  onUpdate: (profile: UserProfile | null) => void
+): () => void {
+  if (!uid) return () => {};
+  const docRef = doc(db, 'users', uid);
+  return onSnapshot(
+    docRef,
+    (snap) => {
+      if (snap.exists()) {
+        onUpdate(snap.data() as UserProfile);
+      } else {
+        onUpdate(null);
+      }
+    },
+    (error) => {
+      console.warn('User profile listener warning:', error.message);
+    }
+  );
+}
+
+export async function saveUserProfile(profile: UserProfile): Promise<void> {
+  const safeId = sanitizeDocId(profile.uid, 'user');
+  const fullProfile = sanitizeUserProfilePayload({
+    ...profile,
+    uid: safeId,
+    onboardingCompleted: true
+  });
+  const docPath = `users/${safeId}`;
   try {
-    localStorage.setItem('itc_user_profile', JSON.stringify(fullProfile));
-  } catch {
-    // ignore
+    await setDoc(doc(db, 'users', safeId), fullProfile);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, docPath);
   }
 }
 
 export async function deleteUserProfile(uid: string): Promise<void> {
-  const docPath = `users/${uid}`;
+  const safeId = sanitizeDocId(uid, 'user');
+  const docPath = `users/${safeId}`;
   try {
-    await deleteDoc(doc(db, 'users', uid));
+    await deleteDoc(doc(db, 'users', safeId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }
@@ -352,65 +456,37 @@ export async function getTotalUsersCount(): Promise<number> {
   }
 }
 
-export function subscribeToAllUsers(
-  onUpdate: (users: UserProfile[]) => void,
-  onFailed?: (error: Error) => void,
-  maxItems: number = 20
-): () => void {
-  const collectionPath = 'users';
-  try {
-    const q = query(
-      collection(db, collectionPath),
-      orderBy('createdAt', 'desc'),
-      limit(maxItems)
-    );
-    const unsub = onSnapshot(
-      q,
-      (snapshot) => {
-        const users: UserProfile[] = [];
-        snapshot.forEach((d) => {
-          users.push(d.data() as UserProfile);
-        });
-        users.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        onUpdate(users);
-      },
-      (error) => {
-        console.warn('Error subscribing to users with limit query:', error);
-        try {
-          const fallbackQ = query(collection(db, collectionPath), limit(maxItems));
-          return onSnapshot(fallbackQ, (snapshot) => {
-            const users: UserProfile[] = [];
-            snapshot.forEach((d) => {
-              users.push(d.data() as UserProfile);
-            });
-            onUpdate(users);
-          });
-        } catch {
-          if (onFailed) onFailed(error);
-        }
-      }
-    );
-    return unsub;
-  } catch (error) {
-    if (onFailed) onFailed(error as Error);
-    return () => {};
-  }
-}
-
 // ==========================================
 // Notifications & Announcements System
 // ==========================================
 
 export async function createNotification(notif: Omit<AppNotification, 'id'>): Promise<string> {
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('Authentication is required to create a notification.');
+  }
+
   const id = `notif_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const docPath = `notifications/${id}`;
+  const validAudiences = ['all', 'monitors', 'students'] as const;
+  const validTypes = ['announcement', 'class_booking', 'system'] as const;
+
+  const payload = {
+    id,
+    title: String(notif.title || 'Announcement').trim().slice(0, 150) || 'Announcement',
+    message: String(notif.message || '').trim().slice(0, 1000) || 'System notification',
+    audience: validAudiences.includes(notif.audience) ? notif.audience : 'all',
+    senderUid: currentUser.uid.slice(0, 128),
+    senderName: String(notif.senderName || 'System').trim().slice(0, 100),
+    senderRole: String(notif.senderRole || 'Class Monitor').trim().slice(0, 60),
+    type: validTypes.includes(notif.type) ? notif.type : 'class_booking',
+    createdAt: ensureIsoTimestamp(notif.createdAt),
+    readBy: Array.isArray(notif.readBy) ? notif.readBy.slice(0, 500) : [],
+    clearedBy: Array.isArray(notif.clearedBy) ? notif.clearedBy.slice(0, 500) : []
+  };
+
   try {
-    await setDoc(doc(db, 'notifications', id), {
-      ...notif,
-      id,
-      readBy: notif.readBy || [],
-      clearedBy: notif.clearedBy || []
-    });
+    await setDoc(doc(db, 'notifications', id), payload);
     return id;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, docPath);
@@ -419,6 +495,7 @@ export async function createNotification(notif: Omit<AppNotification, 'id'>): Pr
 }
 
 export async function markNotificationAsRead(notificationId: string, uid: string): Promise<void> {
+  if (!uid || !auth.currentUser || auth.currentUser.uid !== uid) return;
   try {
     await updateDoc(doc(db, 'notifications', notificationId), {
       readBy: arrayUnion(uid)
@@ -429,6 +506,7 @@ export async function markNotificationAsRead(notificationId: string, uid: string
 }
 
 export async function clearNotificationForUser(notificationId: string, uid: string): Promise<void> {
+  if (!uid || !auth.currentUser || auth.currentUser.uid !== uid) return;
   try {
     await updateDoc(doc(db, 'notifications', notificationId), {
       clearedBy: arrayUnion(uid),
@@ -440,6 +518,7 @@ export async function clearNotificationForUser(notificationId: string, uid: stri
 }
 
 export async function clearAllNotificationsForUser(notificationIds: string[], uid: string): Promise<void> {
+  if (!uid || !auth.currentUser || auth.currentUser.uid !== uid) return;
   try {
     await Promise.all(
       notificationIds.map((id) =>
@@ -455,9 +534,10 @@ export async function clearAllNotificationsForUser(notificationIds: string[], ui
 }
 
 export async function deleteNotificationGlobally(notificationId: string): Promise<void> {
-  const docPath = `notifications/${notificationId}`;
+  const safeId = sanitizeDocId(notificationId, 'notif');
+  const docPath = `notifications/${safeId}`;
   try {
-    await deleteDoc(doc(db, 'notifications', notificationId));
+    await deleteDoc(doc(db, 'notifications', safeId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }
@@ -483,62 +563,64 @@ export function subscribeToNotifications(
   onFailed?: (error: Error) => void,
   maxItems: number = 20
 ): () => void {
+  if (!auth.currentUser) {
+    onUpdate([]);
+    return () => {};
+  }
   const collectionPath = 'notifications';
+  let activeUnsub: (() => void) | null = null;
+  let isCancelled = false;
+
+  const allowedAudiences: Array<'all' | 'monitors' | 'students'> =
+    userRole === 'admin'
+      ? ['all', 'monitors', 'students']
+      : userRole === 'monitor'
+      ? ['all', 'monitors']
+      : ['all', 'students'];
+
+  const mapSnapshot = (snapshot: any) => {
+    const list: AppNotification[] = [];
+    snapshot.forEach((d: any) => {
+      const data = d.data();
+      const aud = data.audience || 'all';
+      if (allowedAudiences.includes(aud)) {
+        list.push({
+          id: d.id,
+          title: data.title || '',
+          message: data.message || '',
+          audience: data.audience || 'all',
+          senderUid: data.senderUid || '',
+          senderName: data.senderName || 'System',
+          senderRole: data.senderRole || 'Admin',
+          type: data.type || 'announcement',
+          createdAt: data.createdAt || ensureIsoTimestamp(),
+          readBy: data.readBy || [],
+          clearedBy: data.clearedBy || []
+        });
+      }
+    });
+    list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    onUpdate(list);
+  };
+
   try {
     const q = query(
       collection(db, collectionPath),
-      orderBy('createdAt', 'desc'),
+      where('audience', 'in', allowedAudiences),
       limit(maxItems)
     );
-    const unsub = onSnapshot(
+    activeUnsub = onSnapshot(
       q,
-      (snapshot) => {
-        const list: AppNotification[] = [];
-        snapshot.forEach((d) => {
-          const data = d.data();
-          const aud = data.audience || 'all';
-          if (
-            userRole === 'admin' ||
-            aud === 'all' ||
-            (userRole === 'monitor' && (aud === 'monitors' || aud === 'all')) ||
-            (userRole === 'student' && (aud === 'students' || aud === 'all'))
-          ) {
-            list.push({
-              id: d.id,
-              title: data.title || '',
-              message: data.message || '',
-              audience: data.audience || 'all',
-              senderName: data.senderName || 'System',
-              senderRole: data.senderRole || 'Admin',
-              type: data.type || 'announcement',
-              createdAt: data.createdAt || new Date().toISOString(),
-              readBy: data.readBy || [],
-              clearedBy: data.clearedBy || []
-            });
-          }
-        });
-        list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        onUpdate(list);
-      },
+      mapSnapshot,
       (error) => {
-        console.warn('Error syncing notifications with order limit, fallback:', error);
-        try {
-          const fallbackQ = query(collection(db, collectionPath), limit(maxItems));
-          return onSnapshot(fallbackQ, (snapshot) => {
-            const list: AppNotification[] = [];
-            snapshot.forEach((d) => {
-              const data = d.data();
-              list.push({ ...data, id: d.id } as AppNotification);
-            });
-            list.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-            onUpdate(list);
-          });
-        } catch {
-          if (onFailed) onFailed(error);
-        }
+        if (isCancelled || !auth.currentUser) return;
+        if (onFailed) onFailed(error);
       }
     );
-    return unsub;
+    return () => {
+      isCancelled = true;
+      if (activeUnsub) activeUnsub();
+    };
   } catch (error) {
     if (onFailed) onFailed(error as Error);
     return () => {};
@@ -554,62 +636,71 @@ export function subscribeToMakeupBookings(
   onFailed?: (error: Error) => void,
   maxItems: number = 20
 ): () => void {
+  if (!auth.currentUser) {
+    onUpdate([]);
+    return () => {};
+  }
+
   const collectionPath = 'makeupBookings';
-  
+  let activeUnsub: (() => void) | null = null;
+  let isCancelled = false;
+
+  const mapSnapshot = (snapshot: any) => {
+    const bookings: MakeupClassBooking[] = [];
+    snapshot.forEach((d: any) => {
+      const data = d.data();
+      bookings.push({
+        id: d.id,
+        course: data.course || '',
+        sessionType: (data.sessionType as MakeupSessionType) || 'Lecture',
+        room: data.room || '',
+        generation: data.generation || (data.groupId ? data.groupId.split('-')[0] : 'I1'),
+        groupId: data.groupId || '',
+        date: data.date || '',
+        day: data.day || 'Monday',
+        time: data.time || '',
+        timeSlots: data.timeSlots || (data.time ? data.time.split(', ') : []),
+        bookedBy: data.bookedBy || 'Monitor',
+        bookedByUid: data.bookedByUid || '',
+        note: data.note || '',
+        createdAt: data.createdAt || ensureIsoTimestamp()
+      });
+    });
+
+    bookings.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    onUpdate(bookings);
+  };
+
   try {
     const q = query(
       collection(db, collectionPath),
       orderBy('createdAt', 'desc'),
       limit(maxItems)
     );
-    const unsub = onSnapshot(
+    activeUnsub = onSnapshot(
       q,
-      (snapshot) => {
-        const bookings: MakeupClassBooking[] = [];
-        snapshot.forEach((d) => {
-          const data = d.data();
-          bookings.push({
-            id: d.id,
-            course: data.course || '',
-            sessionType: (data.sessionType as MakeupSessionType) || 'Lecture',
-            room: data.room || '',
-            generation: data.generation || (data.groupId ? data.groupId.split('-')[0] : 'I1'),
-            groupId: data.groupId || '',
-            date: data.date || '',
-            day: data.day || 'Monday',
-            time: data.time || '',
-            timeSlots: data.timeSlots || (data.time ? data.time.split(', ') : []),
-            bookedBy: data.bookedBy || 'Monitor',
-            bookedByUid: data.bookedByUid || '',
-            bookedByEmail: data.bookedByEmail || '',
-            note: data.note || '',
-            createdAt: data.createdAt || new Date().toISOString()
-          });
-        });
-
-        bookings.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        onUpdate(bookings);
-      },
+      mapSnapshot,
       (error) => {
-        console.warn('Real-time sync error with order query, falling back to basic limit:', error.message);
+        if (isCancelled || !auth.currentUser) return;
         try {
           const fallbackQ = query(collection(db, collectionPath), limit(maxItems));
-          return onSnapshot(fallbackQ, (snapshot) => {
-            const bookings: MakeupClassBooking[] = [];
-            snapshot.forEach((d) => {
-              bookings.push({ ...d.data(), id: d.id } as MakeupClassBooking);
-            });
-            bookings.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-            onUpdate(bookings);
-          });
+          activeUnsub = onSnapshot(
+            fallbackQ,
+            mapSnapshot,
+            (fallbackErr) => {
+              if (onFailed) onFailed(fallbackErr);
+            }
+          );
         } catch {
           if (onFailed) onFailed(error);
         }
       }
     );
-    return unsub;
+    return () => {
+      isCancelled = true;
+      if (activeUnsub) activeUnsub();
+    };
   } catch (error) {
-    console.warn('Could not initialize snapshot listener:', error);
     if (onFailed) onFailed(error as Error);
     return () => {};
   }
@@ -619,49 +710,66 @@ export async function saveMakeupBooking(
   booking: MakeupClassBooking,
   creatorProfile?: UserProfile | null
 ): Promise<void> {
-  const docPath = `makeupBookings/${booking.id}`;
-  try {
-    await setDoc(doc(db, 'makeupBookings', booking.id), {
-      course: booking.course,
-      sessionType: booking.sessionType || 'Lecture',
-      room: booking.room,
-      generation: booking.generation || (booking.groupId ? booking.groupId.split('-')[0] : 'I1'),
-      groupId: booking.groupId,
-      date: booking.date,
-      day: booking.day,
-      time: booking.time,
-      timeSlots: booking.timeSlots || [],
-      bookedBy: booking.bookedBy,
-      bookedByUid: booking.bookedByUid || creatorProfile?.uid || '',
-      bookedByEmail: booking.bookedByEmail || creatorProfile?.email || '',
-      note: booking.note || '',
-      createdAt: booking.createdAt
-    });
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('Authentication is required to create a make-up booking.');
+  }
 
-    const monitorName = creatorProfile?.displayName || booking.bookedBy || 'Class Monitor';
-    const monitorGroup = booking.groupId;
-    const typeLabel = booking.sessionType || 'Lecture';
+  const safeId = sanitizeDocId(booking.id, 'makeup');
+  const docPath = `makeupBookings/${safeId}`;
+  const validSessionTypes: MakeupSessionType[] = ['Lecture', 'Tutorial', 'Practical'];
+  const validGenerations = ['I1', 'I2', 'I3', 'I4', 'I5', 'Alumni'];
+  const allowedSlots = SCHEDULE_DATA.meta.timeSlots;
+  const rawGen = booking.generation || (booking.groupId ? booking.groupId.split('-')[0] : 'I2');
+
+  const filteredSlots = Array.isArray(booking.timeSlots)
+    ? booking.timeSlots.filter(s => allowedSlots.includes(s)).slice(0, 8)
+    : [];
+
+  const payload = {
+    course: String(booking.course || '').trim().slice(0, 200),
+    sessionType: validSessionTypes.includes(booking.sessionType as MakeupSessionType) ? booking.sessionType : 'Lecture',
+    room: String(booking.room || '').trim().slice(0, 100),
+    generation: validGenerations.includes(rawGen) ? rawGen : 'I2',
+    groupId: String(booking.groupId || '').trim().slice(0, 50),
+    date: String(booking.date || '').trim().slice(0, 10),
+    day: booking.day,
+    time: String(booking.time || '').trim().slice(0, 150),
+    timeSlots: filteredSlots.length > 0 ? filteredSlots : [allowedSlots[0]],
+    bookedBy: String(creatorProfile?.displayName || booking.bookedBy || 'Class Monitor').trim().slice(0, 100),
+    bookedByUid: currentUser.uid.slice(0, 128),
+    note: String(booking.note || '').trim().slice(0, 300),
+    createdAt: ensureIsoTimestamp(booking.createdAt)
+  };
+
+  try {
+    await setDoc(doc(db, 'makeupBookings', safeId), payload);
+
+    const monitorName = payload.bookedBy;
+    const monitorGroup = payload.groupId;
+    const typeLabel = payload.sessionType || 'Lecture';
     
     await createNotification({
-      title: `Make-up ${typeLabel}: ${booking.course}`,
-      message: `${monitorName} (${monitorGroup}) scheduled a make-up ${typeLabel.toLowerCase()} in ${booking.room} on ${booking.day}, ${booking.date} (${booking.time}).`,
+      title: `Make-up ${typeLabel}: ${payload.course}`,
+      message: `${monitorName} (${monitorGroup}) scheduled a make-up ${typeLabel.toLowerCase()} in ${payload.room} on ${payload.day}, ${payload.date} (${payload.time}).`,
       audience: 'all',
+      senderUid: currentUser.uid,
       senderName: monitorName,
-      senderRole: 'Class Monitor',
+      senderRole: creatorProfile?.role === 'admin' ? 'Administrator' : 'Class Monitor',
       type: 'class_booking',
-      createdAt: new Date().toISOString(),
-      readBy: creatorProfile?.uid ? [creatorProfile.uid] : []
+      createdAt: ensureIsoTimestamp(),
+      readBy: [currentUser.uid]
     });
-
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, docPath);
   }
 }
 
 export async function deleteMakeupBooking(id: string): Promise<void> {
-  const docPath = `makeupBookings/${id}`;
+  const safeId = sanitizeDocId(id, 'makeup');
+  const docPath = `makeupBookings/${safeId}`;
   try {
-    await deleteDoc(doc(db, 'makeupBookings', id));
+    await deleteDoc(doc(db, 'makeupBookings', safeId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }
@@ -676,7 +784,40 @@ export function subscribeToCancelledClasses(
   onFailed?: (error: Error) => void,
   maxItems: number = 20
 ): () => void {
+  if (!auth.currentUser) {
+    onUpdate([]);
+    return () => {};
+  }
+
   const collectionPath = 'cancelledClasses';
+  let activeUnsub: (() => void) | null = null;
+  let isCancelled = false;
+
+  const mapSnapshot = (snapshot: any) => {
+    const items: CancelledClassSession[] = [];
+    snapshot.forEach((d: any) => {
+      const data = d.data();
+      items.push({
+        id: d.id,
+        groupId: data.groupId || '',
+        cohort: data.cohort || (data.groupId ? data.groupId.split('-')[0] : 'I1'),
+        day: data.day || 'Monday',
+        date: data.date || '',
+        time: data.time || '',
+        course: data.course || '',
+        type: (data.type as SessionType) || 'Lecture',
+        lecturer: data.lecturer || '',
+        room: data.room || '',
+        cancelledBy: data.cancelledBy || 'Class Monitor',
+        cancelledByUid: data.cancelledByUid || '',
+        reason: data.reason || '',
+        createdAt: data.createdAt || ensureIsoTimestamp()
+      });
+    });
+
+    items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    onUpdate(items);
+  };
 
   try {
     const q = query(
@@ -684,54 +825,30 @@ export function subscribeToCancelledClasses(
       orderBy('createdAt', 'desc'),
       limit(maxItems)
     );
-    const unsub = onSnapshot(
+    activeUnsub = onSnapshot(
       q,
-      (snapshot) => {
-        const items: CancelledClassSession[] = [];
-        snapshot.forEach((d) => {
-          const data = d.data();
-          items.push({
-            id: d.id,
-            groupId: data.groupId || '',
-            cohort: data.cohort || (data.groupId ? data.groupId.split('-')[0] : 'I1'),
-            day: data.day || 'Monday',
-            date: data.date || '',
-            time: data.time || '',
-            course: data.course || '',
-            type: (data.type as SessionType) || 'Lecture',
-            lecturer: data.lecturer || '',
-            room: data.room || '',
-            cancelledBy: data.cancelledBy || 'Class Monitor',
-            cancelledByUid: data.cancelledByUid || '',
-            cancelledByEmail: data.cancelledByEmail || '',
-            reason: data.reason || '',
-            createdAt: data.createdAt || new Date().toISOString()
-          });
-        });
-
-        items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-        onUpdate(items);
-      },
+      mapSnapshot,
       (error) => {
-        console.warn('Error syncing cancelled classes with query limit, falling back:', error.message);
+        if (isCancelled || !auth.currentUser) return;
         try {
           const fallbackQ = query(collection(db, collectionPath), limit(maxItems));
-          return onSnapshot(fallbackQ, (snapshot) => {
-            const items: CancelledClassSession[] = [];
-            snapshot.forEach((d) => {
-              items.push({ ...d.data(), id: d.id } as CancelledClassSession);
-            });
-            items.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
-            onUpdate(items);
-          });
+          activeUnsub = onSnapshot(
+            fallbackQ,
+            mapSnapshot,
+            (fallbackErr) => {
+              if (onFailed) onFailed(fallbackErr);
+            }
+          );
         } catch {
           if (onFailed) onFailed(error);
         }
       }
     );
-    return unsub;
+    return () => {
+      isCancelled = true;
+      if (activeUnsub) activeUnsub();
+    };
   } catch (error) {
-    console.warn('Could not initialize cancelledClasses listener:', error);
     if (onFailed) onFailed(error as Error);
     return () => {};
   }
@@ -741,36 +858,47 @@ export async function saveCancelledClass(
   item: CancelledClassSession,
   creatorProfile?: UserProfile | null
 ): Promise<void> {
-  const docPath = `cancelledClasses/${item.id}`;
-  try {
-    await setDoc(doc(db, 'cancelledClasses', item.id), {
-      groupId: item.groupId,
-      cohort: item.cohort,
-      day: item.day,
-      date: item.date,
-      time: item.time,
-      course: item.course,
-      type: item.type,
-      lecturer: item.lecturer,
-      room: item.room,
-      cancelledBy: item.cancelledBy,
-      cancelledByUid: item.cancelledByUid || creatorProfile?.uid || '',
-      cancelledByEmail: item.cancelledByEmail || creatorProfile?.email || '',
-      reason: item.reason || '',
-      createdAt: item.createdAt
-    });
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw new Error('Authentication is required to mark a class as cancelled.');
+  }
 
-    const monitorName = creatorProfile?.displayName || item.cancelledBy || 'Class Monitor';
+  const safeId = sanitizeDocId(item.id, 'cancel');
+  const docPath = `cancelledClasses/${safeId}`;
+  const validCohorts = ['I1', 'I2', 'I3', 'I4', 'I5', 'Alumni'];
+  const rawCohort = item.cohort || (item.groupId ? item.groupId.split('-')[0] : 'I2');
+
+  const payload = {
+    groupId: String(item.groupId || '').trim().slice(0, 50),
+    cohort: validCohorts.includes(rawCohort) ? rawCohort : 'I2',
+    day: item.day,
+    date: String(item.date || '').trim().slice(0, 10),
+    time: String(item.time || '').trim().slice(0, 100),
+    course: String(item.course || '').trim().slice(0, 200),
+    type: item.type || 'Lecture',
+    lecturer: String(item.lecturer || '').trim().slice(0, 150),
+    room: String(item.room || '').trim().slice(0, 100),
+    cancelledBy: String(creatorProfile?.displayName || item.cancelledBy || 'Class Monitor').trim().slice(0, 100),
+    cancelledByUid: currentUser.uid.slice(0, 128),
+    reason: String(item.reason || '').trim().slice(0, 300),
+    createdAt: ensureIsoTimestamp(item.createdAt)
+  };
+
+  try {
+    await setDoc(doc(db, 'cancelledClasses', safeId), payload);
+
+    const monitorName = payload.cancelledBy;
 
     await createNotification({
-      title: `Class Cancelled (${item.groupId}): ${item.course}`,
-      message: `${monitorName} marked ${item.course} (${item.type}) for ${item.groupId} on ${item.day}, ${item.date} (${item.time}) as cancelled for this week.${item.room ? ` ${item.room} is now free during this slot.` : ''}`,
+      title: `Class Cancelled (${payload.groupId}): ${payload.course}`,
+      message: `${monitorName} marked ${payload.course} (${payload.type}) for ${payload.groupId} on ${payload.day}, ${payload.date} (${payload.time}) as cancelled for this week.${payload.room ? ` ${payload.room} is now free during this slot.` : ''}`,
       audience: 'all',
+      senderUid: currentUser.uid,
       senderName: monitorName,
-      senderRole: 'Class Monitor',
+      senderRole: creatorProfile?.role === 'admin' ? 'Administrator' : 'Class Monitor',
       type: 'class_booking',
-      createdAt: new Date().toISOString(),
-      readBy: creatorProfile?.uid ? [creatorProfile.uid] : []
+      createdAt: ensureIsoTimestamp(),
+      readBy: [currentUser.uid]
     });
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, docPath);
@@ -778,10 +906,12 @@ export async function saveCancelledClass(
 }
 
 export async function deleteCancelledClass(id: string): Promise<void> {
-  const docPath = `cancelledClasses/${id}`;
+  const safeId = sanitizeDocId(id, 'cancel');
+  const docPath = `cancelledClasses/${safeId}`;
   try {
-    await deleteDoc(doc(db, 'cancelledClasses', id));
+    await deleteDoc(doc(db, 'cancelledClasses', safeId));
   } catch (error) {
     handleFirestoreError(error, OperationType.DELETE, docPath);
   }
 }
+

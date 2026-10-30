@@ -36,7 +36,6 @@ export interface MakeupClassBooking {
   timeSlots?: string[];
   bookedBy: string;
   bookedByUid?: string;
-  bookedByEmail?: string;
   note?: string;
   createdAt: string;
 }
@@ -54,7 +53,6 @@ export interface CancelledClassSession {
   room: string;
   cancelledBy: string;
   cancelledByUid?: string;
-  cancelledByEmail?: string;
   reason?: string;
   createdAt: string;
 }
@@ -182,7 +180,7 @@ export function isCancellationInCurrentWeek(item: CancelledClassSession): boolea
 }
 
 /**
- * Permission check: Only the Class Monitor who created the make-up booking or an Admin can delete it.
+ * Permission check: Only the Class Monitor who created the make-up booking (for their assigned group) or an Admin can delete it.
  */
 export function canDeleteMakeupBooking(
   booking: MakeupClassBooking,
@@ -191,24 +189,14 @@ export function canDeleteMakeupBooking(
   if (!userProfile) return false;
   if (userProfile.role === 'admin') return true;
   if (userProfile.role !== 'monitor') return false;
-
-  if (booking.bookedByUid && userProfile.uid) {
-    return booking.bookedByUid === userProfile.uid;
+  if (userProfile.groupId && booking.groupId && userProfile.groupId !== booking.groupId) {
+    return false;
   }
-  if (booking.bookedByEmail && userProfile.email) {
-    return booking.bookedByEmail.toLowerCase() === userProfile.email.toLowerCase();
-  }
-
-  // Fallback for legacy bookings without UID: match displayName or email prefix
-  const creator = (booking.bookedBy || '').trim().toLowerCase();
-  const userDisplay = (userProfile.displayName || '').trim().toLowerCase();
-  const userEmailPrefix = (userProfile.email?.split('@')[0] || '').trim().toLowerCase();
-
-  return Boolean(creator && (creator === userDisplay || creator === userEmailPrefix));
+  return Boolean(booking.bookedByUid && userProfile.uid && booking.bookedByUid === userProfile.uid);
 }
 
 /**
- * Permission check: Only the Class Monitor who marked a class cancelled or an Admin can restore/delete it.
+ * Permission check: Only the Class Monitor who marked a class cancelled (for their assigned group) or an Admin can restore/delete it.
  */
 export function canManageCancelledClass(
   item: CancelledClassSession,
@@ -217,19 +205,10 @@ export function canManageCancelledClass(
   if (!userProfile) return false;
   if (userProfile.role === 'admin') return true;
   if (userProfile.role !== 'monitor') return false;
-
-  if (item.cancelledByUid && userProfile.uid) {
-    return item.cancelledByUid === userProfile.uid;
+  if (userProfile.groupId && item.groupId && userProfile.groupId !== item.groupId) {
+    return false;
   }
-  if (item.cancelledByEmail && userProfile.email) {
-    return item.cancelledByEmail.toLowerCase() === userProfile.email.toLowerCase();
-  }
-
-  const creator = (item.cancelledBy || '').trim().toLowerCase();
-  const userDisplay = (userProfile.displayName || '').trim().toLowerCase();
-  const userEmailPrefix = (userProfile.email?.split('@')[0] || '').trim().toLowerCase();
-
-  return Boolean(creator && (creator === userDisplay || creator === userEmailPrefix));
+  return Boolean(item.cancelledByUid && userProfile.uid && item.cancelledByUid === userProfile.uid);
 }
 
 // Helper: Calculate the earliest bookable date in Cambodia (UTC+7)
@@ -588,22 +567,25 @@ export function MakeupClassBookingModal({
       ? currentUserProfile.email.split('@')[0]
       : 'Class Monitor';
 
-    const matchedGroup = SCHEDULE_DATA.groups.find(g => g.id === groupId);
+    const enforcedGroupId =
+      currentUserProfile?.role === 'monitor' && currentUserProfile.groupId
+        ? currentUserProfile.groupId
+        : groupId;
+    const matchedGroup = SCHEDULE_DATA.groups.find(g => g.id === enforcedGroupId);
 
     const newBooking: MakeupClassBooking = {
       id: `makeup-${Date.now()}`,
       course: course.trim(),
       sessionType,
       room: room.trim(),
-      generation: matchedGroup?.cohort || groupId.split('-')[0] || 'I2',
-      groupId,
+      generation: matchedGroup?.cohort || enforcedGroupId.split('-')[0] || 'I2',
+      groupId: enforcedGroupId,
       date: selectedDate,
       day: derivedDay,
       time: selectedSlots.join(', '),
       timeSlots: selectedSlots,
       bookedBy: monitorName,
       bookedByUid: currentUserProfile?.uid || '',
-      bookedByEmail: currentUserProfile?.email || '',
       note: note.trim() || '',
       createdAt: new Date().toISOString()
     };
@@ -1117,9 +1099,10 @@ export function MakeupClassBookingModal({
                     Cohort / Group *
                   </label>
                   <select
-                    value={groupId}
+                    value={currentUserProfile?.role === 'monitor' && currentUserProfile.groupId ? currentUserProfile.groupId : groupId}
                     onChange={(e) => setGroupId(e.target.value)}
-                    className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-md text-white font-mono focus:outline-hidden focus:border-sky-400 text-xs cursor-pointer"
+                    disabled={currentUserProfile?.role === 'monitor'}
+                    className="w-full px-2.5 py-2 bg-slate-950 border border-slate-700 rounded-md text-white font-mono focus:outline-hidden focus:border-sky-400 text-xs cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {SCHEDULE_DATA.groups.map(g => (
                       <option key={g.id} value={g.id}>{g.id}</option>

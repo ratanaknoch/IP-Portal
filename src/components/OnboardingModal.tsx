@@ -4,12 +4,11 @@ import {
   ShieldCheck, 
   Check, 
   AlertCircle, 
-  Lock, 
   User, 
   Mail, 
   ArrowRight
 } from 'lucide-react';
-import { UserProfile, UserRole, AcademicYear, saveUserProfile } from '../lib/firebase';
+import { UserProfile, UserRole, AcademicYear, getUserProfile, saveUserProfile, BOOTSTRAPPED_ADMIN_EMAIL } from '../lib/firebase';
 import { SCHEDULE_DATA } from '../data/scheduleData';
 import MetallicPaint from './MetallicPaint';
 
@@ -33,14 +32,13 @@ export function OnboardingModal({
   );
   const [year, setYear] = useState<AcademicYear>('I1');
   const [groupId, setGroupId] = useState('I1-G1');
-  const [role, setRole] = useState<UserRole>('student');
-  
-  // Monitor password requirement: "Bigboss@67"
-  const [monitorPassword, setMonitorPassword] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
   if (!isOpen) return null;
+
+  const isRootAdmin =
+    currentUser.email?.toLowerCase() === BOOTSTRAPPED_ADMIN_EMAIL.toLowerCase();
 
   // Filter available groups based on selected cohort/year
   const availableGroups = SCHEDULE_DATA.groups.filter((g) => g.cohort === year);
@@ -64,35 +62,40 @@ export function OnboardingModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-
-    // If Monitor role is selected, verify password strictly
-    if (role === 'monitor') {
-      if (monitorPassword.trim() !== 'Bigboss@67') {
-        setError('Incorrect Class Monitor Password. Please enter the valid monitor password.');
-        return;
-      }
-    }
-
     setSaving(true);
+
     try {
+      const existingProfile = await getUserProfile(currentUser.uid);
+      const assignedRole: UserRole = isRootAdmin
+        ? 'admin'
+        : existingProfile?.role || 'student';
+      const enforcedGroupId =
+        existingProfile?.role === 'monitor' && existingProfile.groupId
+          ? existingProfile.groupId
+          : groupId;
+      const enforcedYear =
+        existingProfile?.role === 'monitor' && existingProfile.year
+          ? existingProfile.year
+          : year;
+
       const profile: UserProfile = {
         uid: currentUser.uid,
-        email: currentUser.email || 'student@itc.edu.kh',
-        displayName: displayName.trim(),
-        role,
-        year,
-        groupId,
+        email: currentUser.email || existingProfile?.email || 'student@itc.edu.kh',
+        displayName: displayName.trim().slice(0, 100) || 'ITC Student',
+        role: assignedRole,
+        year: enforcedYear,
+        groupId: enforcedGroupId,
         onboardingCompleted: true,
-        createdAt: new Date().toISOString(),
+        createdAt: existingProfile?.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
 
-      // Save to Firestore
+      // Save to Firestore (enforced by server-side security rules)
       await saveUserProfile(profile);
 
       // Auto bookmark their respected timetable
       try {
-        localStorage.setItem('itc_my_cohort', groupId);
+        localStorage.setItem('itc_my_cohort', enforcedGroupId);
         localStorage.setItem('itc_student_class_picked', 'true');
       } catch {
         // ignore
@@ -175,6 +178,7 @@ export function OnboardingModal({
               <input
                 type="text"
                 required
+                maxLength={100}
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder="Your full name"
@@ -183,7 +187,7 @@ export function OnboardingModal({
             </div>
           </div>
 
-          {/* Academic Year Selection - Full Width to prevent text leak */}
+          {/* Academic Year Selection */}
           <div className="space-y-1.5 pt-1">
             <div className="flex items-center justify-between">
               <label className="block text-xs sm:text-sm font-semibold text-slate-300">
@@ -249,67 +253,23 @@ export function OnboardingModal({
             )}
           </div>
 
-          {/* Role Selection */}
-          <div className="space-y-1.5 pt-1">
-            <label className="block text-xs sm:text-sm font-semibold text-slate-300">
-              Select Your Role *
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => { setRole('student'); setError(''); }}
-                className={`py-2.5 px-3 rounded-lg border text-left transition-all cursor-pointer ${
-                  role === 'student'
-                    ? 'bg-sky-950/70 border-sky-500 text-white shadow-xs'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm text-white">Student</span>
-                  {role === 'student' && <Check className="w-4 h-4 text-sky-400" />}
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => { setRole('monitor'); setError(''); }}
-                className={`py-2.5 px-3 rounded-lg border text-left transition-all cursor-pointer ${
-                  role === 'monitor'
-                    ? 'bg-amber-950/70 border-amber-500 text-white shadow-xs'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-sm text-amber-300 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4" />
-                    Class Monitor
-                  </span>
-                  {role === 'monitor' && <Check className="w-4 h-4 text-amber-400" />}
-                </div>
-              </button>
+          {/* Role Verification Notice (Zero-Trust Google Auth Role Enforcement) */}
+          <div className="p-3.5 rounded-xl bg-slate-950/90 border border-slate-800 space-y-1.5 text-xs">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0" />
+                <span>Account Access Level</span>
+              </span>
+              <span className="font-mono font-bold text-sky-300">
+                {isRootAdmin ? 'Root Administrator' : 'Verified Student'}
+              </span>
             </div>
+            <p className="text-slate-400 leading-relaxed">
+              {isRootAdmin
+                ? 'Your verified Google email matches the root administrator account. Full Bongthom Admin permissions will be enabled.'
+                : 'Class Monitor and Administrator permissions are verified via your Google account email in the Bongthom Admin Console.'}
+            </p>
           </div>
-
-          {/* If Monitor is selected: require password */}
-          {role === 'monitor' && (
-            <div className="p-3.5 rounded-lg bg-amber-950/40 border border-amber-800/80 space-y-2 animate-in fade-in duration-150">
-              <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-amber-300">
-                <Lock className="w-4 h-4" />
-                <span>Class Monitor Password *</span>
-              </div>
-              <input
-                type="password"
-                required
-                value={monitorPassword}
-                onChange={(e) => {
-                  setMonitorPassword(e.target.value);
-                  setError('');
-                }}
-                placeholder="Enter monitor password"
-                className="w-full px-3 py-2 bg-slate-950 border border-amber-800/80 rounded-lg text-white font-mono text-sm focus:outline-hidden focus:border-amber-400"
-              />
-            </div>
-          )}
 
           {/* Submit Button */}
           <div className="pt-2">

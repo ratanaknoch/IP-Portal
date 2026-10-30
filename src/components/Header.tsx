@@ -59,11 +59,11 @@ export function Header({
   onOpenAdminDashboard,
   onLogout
 }: HeaderProps) {
-  const isStudent = portalRole === 'student';
-  const canToggleRole = Boolean(
-    onTogglePortalRole &&
-    (userProfile?.role === 'monitor' || userProfile?.role === 'admin' || isMonitorAuthorized)
+  const hasMonitorOrAdminPrivilege = Boolean(
+    userProfile?.role === 'monitor' || userProfile?.role === 'admin' || isMonitorAuthorized
   );
+  const isStudent = !hasMonitorOrAdminPrivilege || portalRole === 'student';
+  const canToggleRole = Boolean(onTogglePortalRole && hasMonitorOrAdminPrivilege);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 

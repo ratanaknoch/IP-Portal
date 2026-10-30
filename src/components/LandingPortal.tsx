@@ -33,7 +33,7 @@ interface LandingPortalProps {
   myCohort: string;
   onSelectMyCohort: (groupId: string) => void;
   isMonitorAuthorized: boolean;
-  onAuthorizeMonitor: (genPassword: string) => void;
+  onAuthorizeMonitor?: (genPassword: string) => void;
   userProfile?: UserProfile | null;
   unreadNotificationsCount?: number;
   onOpenAuthModal: () => void;
@@ -68,11 +68,7 @@ export function LandingPortal({
   onOpenTerms
 }: LandingPortalProps) {
   const [showClubModal, setShowClubModal] = useState(false);
-  const [showMonitorAuthModal, setShowMonitorAuthModal] = useState(false);
   const [showClassSelectModal, setShowClassSelectModal] = useState(false);
-  const [showRestrictedNotice, setShowRestrictedNotice] = useState(false);
-  const [monitorPinInput, setMonitorPinInput] = useState('');
-  const [pinError, setPinError] = useState('');
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -103,24 +99,6 @@ export function LandingPortal({
   const handleClassMonitorClick = () => {
     if (isMonitorOrAdmin) {
       onEnterClassMonitor();
-      return;
-    }
-  };
-
-  const handleVerifyMonitor = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const clean = monitorPinInput.trim();
-    
-    // Strict password requirement: "Bigboss@67"
-    if (clean === 'Bigboss@67') {
-      if (onUpgradeToMonitor) {
-        await onUpgradeToMonitor(clean);
-      }
-      onAuthorizeMonitor(clean);
-      setShowMonitorAuthModal(false);
-      onEnterClassMonitor(clean);
-    } else {
-      setPinError('Invalid password. Class Monitor password is required.');
     }
   };
 
@@ -673,83 +651,6 @@ export function LandingPortal({
           <span>Phnom Penh, Cambodia</span>
         </div>
       </footer>
-
-      {/* Class Monitor Authorization Modal (Password: Bigboss@67) */}
-      {showMonitorAuthModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-lg p-6 shadow-2xl space-y-4 text-white">
-            <div className="flex items-start justify-between">
-              <div className="w-10 h-10 rounded-md bg-amber-950/80 border border-amber-800 flex items-center justify-center text-amber-300">
-                <Lock className="w-5 h-5" />
-              </div>
-              <button
-                onClick={() => setShowMonitorAuthModal(false)}
-                className="p-1 text-slate-400 hover:text-white rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
-                  Password Required
-                </span>
-              </div>
-              <h3 className="text-base font-bold text-white">
-                Class Monitor Password
-              </h3>
-            </div>
-
-            <form onSubmit={handleVerifyMonitor} className="space-y-3 pt-1">
-              <div>
-                <input
-                  type="password"
-                  value={monitorPinInput}
-                  onChange={(e) => {
-                    setMonitorPinInput(e.target.value);
-                    setPinError('');
-                  }}
-                  placeholder="Enter monitor password"
-                  className="w-full text-xs px-3 py-2 bg-slate-950 border border-slate-700 rounded-md text-white placeholder:text-slate-500 focus:outline-hidden focus:ring-1 focus:ring-amber-400 font-mono tracking-wider"
-                  autoFocus
-                />
-                {pinError && (
-                  <p className="text-[11px] text-rose-400 mt-1">{pinError}</p>
-                )}
-              </div>
-
-              <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowMonitorAuthModal(false);
-                    setShowClassSelectModal(true);
-                  }}
-                  className="text-xs text-slate-400 hover:text-slate-200 transition-colors"
-                >
-                  Student Portal
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowMonitorAuthModal(false)}
-                    className="px-3 py-1.5 text-xs text-slate-400 hover:text-white rounded"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-1.5 text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-md transition-colors"
-                  >
-                    Enter
-                  </button>
-                </div>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Student Class Selection Modal */}
       {showClassSelectModal && (

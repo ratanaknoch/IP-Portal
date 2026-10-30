@@ -2,12 +2,13 @@
   "entities": {
     "makeupBooking": {
       "title": "MakeupClassBooking",
-      "description": "A scheduled classroom make-up or extra lecture/tutorial/practical booking reserved by a class monitor for the current week.",
+      "description": "A scheduled classroom make-up or extra lecture/tutorial/practical booking reserved by a verified class monitor (scoped to their assigned groupId) or admin for the active week.",
       "type": "object",
       "properties": {
         "course": {
           "type": "string",
           "description": "Name of the course or class subject",
+          "minLength": 1,
           "maxLength": 200
         },
         "sessionType": {
@@ -18,21 +19,25 @@
         "room": {
           "type": "string",
           "description": "Classroom or laboratory venue",
+          "minLength": 1,
           "maxLength": 100
         },
         "generation": {
           "type": "string",
           "description": "Student cohort generation",
-          "enum": ["I1", "I2", "I3", "I4"]
+          "enum": ["I1", "I2", "I3", "I4", "I5", "Alumni"]
         },
         "groupId": {
           "type": "string",
           "description": "Target student group or class section",
+          "minLength": 1,
           "maxLength": 50
         },
         "date": {
           "type": "string",
           "description": "Selected calendar date in YYYY-MM-DD format",
+          "minLength": 10,
+          "maxLength": 10,
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
         },
         "day": {
@@ -42,23 +47,25 @@
         },
         "time": {
           "type": "string",
-          "description": "Time slot period",
-          "maxLength": 100
+          "description": "Time slot period string",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "timeSlots": {
+          "type": "array",
+          "description": "Selected time slot strings (bounded list <= 8, allowlisted to valid ITC time slots)"
         },
         "bookedBy": {
           "type": "string",
-          "description": "Monitor identifier or name",
+          "description": "Monitor or admin display name",
+          "minLength": 1,
           "maxLength": 100
         },
         "bookedByUid": {
           "type": "string",
-          "description": "UID of the class monitor or admin who created the booking",
+          "description": "Firebase Auth UID of the class monitor or admin who created the booking",
+          "minLength": 1,
           "maxLength": 128
-        },
-        "bookedByEmail": {
-          "type": "string",
-          "description": "Email of the class monitor or admin who created the booking",
-          "maxLength": 150
         },
         "note": {
           "type": "string",
@@ -67,23 +74,27 @@
         },
         "createdAt": {
           "type": "string",
-          "description": "ISO timestamp of when the reservation was made"
+          "description": "Strict ISO-8601 UTC timestamp of when the reservation was made",
+          "minLength": 20,
+          "maxLength": 30,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"
         }
       },
-      "required": ["course", "room", "groupId", "date", "day", "time", "bookedBy", "createdAt"]
+      "required": ["course", "room", "groupId", "date", "day", "time", "bookedBy", "bookedByUid", "createdAt"]
     },
     "cancelledClass": {
       "title": "CancelledClassSession",
-      "description": "A regular scheduled class marked as cancelled for the current week by a class monitor, automatically resetting on Sunday.",
+      "description": "A regular scheduled class marked as cancelled for the active week by an authorized class monitor (scoped to their groupId) or admin, automatically resetting on Sunday.",
       "type": "object",
       "properties": {
         "groupId": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 50
         },
         "cohort": {
           "type": "string",
-          "enum": ["I1", "I2", "I3", "I4"]
+          "enum": ["I1", "I2", "I3", "I4", "I5", "Alumni"]
         },
         "day": {
           "type": "string",
@@ -91,14 +102,18 @@
         },
         "date": {
           "type": "string",
+          "minLength": 10,
+          "maxLength": 10,
           "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
         },
         "time": {
           "type": "string",
-          "maxLength": 50
+          "minLength": 1,
+          "maxLength": 100
         },
         "course": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 200
         },
         "type": {
@@ -115,77 +130,159 @@
         },
         "cancelledBy": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 100
         },
         "cancelledByUid": {
           "type": "string",
+          "minLength": 1,
           "maxLength": 128
-        },
-        "cancelledByEmail": {
-          "type": "string",
-          "maxLength": 150
         },
         "reason": {
           "type": "string",
           "maxLength": 300
         },
         "createdAt": {
-          "type": "string"
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 30,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"
         }
       },
-      "required": ["groupId", "day", "date", "time", "course", "cancelledBy", "createdAt"]
+      "required": ["groupId", "day", "date", "time", "course", "cancelledBy", "cancelledByUid", "createdAt"]
     },
     "userProfile": {
       "title": "UserProfile",
-      "description": "User profile containing academic cohort, group, and access role.",
+      "description": "User profile containing academic cohort, group, and server-enforced access role.",
       "type": "object",
       "properties": {
-        "uid": { "type": "string" },
-        "email": { "type": "string" },
-        "displayName": { "type": "string" },
-        "role": { "type": "string", "enum": ["student", "monitor", "admin"] },
-        "year": { "type": "string", "enum": ["I1", "I2", "I3", "I4", "I5", "Alumni", "Admin", "None"] },
-        "groupId": { "type": "string" },
-        "onboardingCompleted": { "type": "boolean" },
-        "createdAt": { "type": "string" },
-        "updatedAt": { "type": "string" }
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 150
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "role": {
+          "type": "string",
+          "enum": ["student", "monitor", "admin"]
+        },
+        "year": {
+          "type": "string",
+          "enum": ["I1", "I2", "I3", "I4", "I5", "Alumni", "Admin", "None"]
+        },
+        "groupId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "onboardingCompleted": {
+          "type": "boolean"
+        },
+        "promotionYear": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "isAlumni": {
+          "type": "boolean"
+        },
+        "createdAt": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 30,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"
+        },
+        "updatedAt": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 30,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"
+        }
       },
-      "required": ["uid", "email", "role"]
+      "required": ["uid", "email", "displayName", "role", "year", "groupId", "onboardingCompleted", "createdAt"]
     },
     "notification": {
       "title": "Notification",
-      "description": "System or admin announcement sent to user inboxes.",
+      "description": "System or admin announcement sent to authenticated user inboxes with audience-scoped reads and monotonic self-UID read receipts.",
       "type": "object",
       "properties": {
-        "title": { "type": "string", "maxLength": 150 },
-        "message": { "type": "string", "maxLength": 1000 },
-        "audience": { "type": "string", "enum": ["all", "monitors", "students"] },
-        "senderName": { "type": "string" },
-        "senderRole": { "type": "string" },
-        "type": { "type": "string", "enum": ["announcement", "class_booking", "system"] },
-        "createdAt": { "type": "string" },
-        "readBy": { "type": "string" },
-        "clearedBy": { "type": "string" }
+        "id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 150
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "audience": {
+          "type": "string",
+          "enum": ["all", "monitors", "students"]
+        },
+        "senderUid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "senderName": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "senderRole": {
+          "type": "string",
+          "maxLength": 60
+        },
+        "type": {
+          "type": "string",
+          "enum": ["announcement", "class_booking", "system"]
+        },
+        "createdAt": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 30,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?Z$"
+        },
+        "readBy": {
+          "type": "array",
+          "description": "Bounded list of UIDs that read this notification"
+        },
+        "clearedBy": {
+          "type": "array",
+          "description": "Bounded list of UIDs that dismissed this notification"
+        }
       },
-      "required": ["title", "message", "audience", "createdAt"]
+      "required": ["title", "message", "audience", "senderUid", "createdAt", "readBy", "clearedBy"]
     }
   },
   "firestore": {
     "/makeupBookings/{bookingId}": {
       "schema": "#/entities/makeupBooking",
-      "description": "Public timetable make-up reservations viewable by all students and manageable by authorized class monitors"
+      "description": "Authenticated timetable make-up reservations viewable by verified users and writable only by group-scoped class monitors or admins"
     },
     "/cancelledClasses/{cancelId}": {
       "schema": "#/entities/cancelledClass",
-      "description": "Weekly cancelled class sessions marked by class monitors that reset every Sunday"
+      "description": "Authenticated weekly cancelled class sessions marked by group-scoped class monitors or admins that reset every Sunday"
     },
     "/users/{userId}": {
       "schema": "#/entities/userProfile",
-      "description": "User profile and role metadata"
+      "description": "Isolated user profile and role metadata readable only by the profile owner or verified admins"
     },
     "/notifications/{notificationId}": {
       "schema": "#/entities/notification",
-      "description": "Announcements and monitor notifications"
+      "description": "Audience-scoped announcements and monitor notifications readable by authorized roles and creatable by monitors/admins with senderUid attribution"
     }
   }
 }
