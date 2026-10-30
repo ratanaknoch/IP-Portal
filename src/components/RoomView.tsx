@@ -85,8 +85,14 @@ export function RoomView({
   const [buildingFilter, setBuildingFilter] = useState<'all' | 'A' | 'J'>('all');
   const [spotlightRoom, setSpotlightRoom] = useState<string>('ALL');
   const [dayFilter, setDayFilter] = useState<string>('ALL');
-  // Default to Full view format per user request
-  const [roomFormat, setRoomFormat] = useState<'short' | 'full'>('full');
+  // Default to short format on mobile screens to prevent truncation (e.g. 'Room A-4...' -> 'A-420')
+  const [roomFormat, setRoomFormat] = useState<'short' | 'full'>(() => {
+    try {
+      return typeof window !== 'undefined' && window.innerWidth < 640 ? 'short' : 'full';
+    } catch {
+      return 'full';
+    }
+  });
 
   // Today Inspector state
   const defaultDay = (cambodiaTime.dayName === 'Sunday' ? 'Monday' : cambodiaTime.dayName) as ScheduleSession['day'];
@@ -174,81 +180,85 @@ export function RoomView({
             <div className="flex items-center gap-1 p-1 bg-slate-800 rounded-md">
               <button
                 onClick={() => setViewMode('weekly-matrix')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                className={`px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                   viewMode === 'weekly-matrix'
                     ? 'bg-slate-700 text-slate-100 shadow-xs'
                     : 'text-slate-400 hover:text-slate-100'
                 }`}
               >
-                <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                <span>Full Week Available Rooms</span>
+                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="hidden sm:inline">Full Week Available Rooms</span>
+                <span className="sm:hidden">Full Week</span>
               </button>
               <button
                 onClick={() => setViewMode('today-inspector')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                className={`px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                   viewMode === 'today-inspector'
                     ? 'bg-slate-700 text-slate-100 shadow-xs'
                     : 'text-slate-400 hover:text-slate-100'
                 }`}
               >
-                <Clock className="w-3.5 h-3.5 text-slate-400" />
-                <span>Hour Availability Inspector</span>
+                <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <span className="hidden sm:inline">Hour Availability Inspector</span>
+                <span className="sm:hidden">Inspector</span>
               </button>
             </div>
 
             {/* Academic Week Segmented Selector */}
-            <div className="flex items-center gap-1 p-1 bg-slate-800 rounded-md">
+            <div className="flex items-center gap-1 p-1 bg-slate-800 rounded-md shrink-0">
               <button
                 type="button"
                 onClick={() => handleWeekChange(0)}
-                className={`px-2.5 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer ${
                   currentWeekOffset === 0
                     ? 'bg-sky-600 text-white shadow-xs font-bold'
                     : 'text-slate-400 hover:text-slate-100'
                 }`}
               >
-                <CalendarDays className="w-3.5 h-3.5" />
+                <CalendarDays className="w-3.5 h-3.5 shrink-0" />
                 <span>This Week</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleWeekChange(1)}
-                className={`px-2.5 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                className={`px-2 sm:px-2.5 py-1.5 text-xs font-semibold rounded transition-colors whitespace-nowrap flex items-center gap-1 cursor-pointer ${
                   currentWeekOffset === 1
                     ? 'bg-sky-600 text-white shadow-xs font-bold'
                     : 'text-slate-400 hover:text-slate-100'
                 }`}
               >
-                <CalendarDays className="w-3.5 h-3.5" />
+                <CalendarDays className="w-3.5 h-3.5 shrink-0" />
                 <span>Next Week</span>
               </button>
             </div>
           </div>
 
           {/* Action buttons & Venue counts */}
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2">
             {onOpenFreeRooms && (
               <button
                 onClick={onOpenFreeRooms}
-                className="px-3 py-1.5 text-xs font-semibold rounded bg-sky-600 hover:bg-sky-500 text-white flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded bg-sky-600 hover:bg-sky-500 text-white flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
                 title="Open one-click Free Study Rooms live scanner"
               >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>View Available Rooms</span>
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">View Available Rooms</span>
+                <span className="sm:hidden">Available Rooms</span>
               </button>
             )}
 
             {onOpenBookingModal && (
               <button
                 onClick={onOpenBookingModal}
-                className="px-3 py-1.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
+                className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 transition-colors shadow-xs cursor-pointer"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Book Make-up Class</span>
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Book Make-up Class</span>
+                <span className="sm:hidden">Book Class</span>
               </button>
             )}
 
-            <div className="text-xs text-slate-400 flex items-center gap-2">
+            <div className="text-xs text-slate-400 flex items-center gap-1.5 shrink-0">
               <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
               <span>{FREE_STUDY_ROOMS.length} Venues</span>
             </div>
@@ -290,7 +300,7 @@ export function RoomView({
                     <button
                       key={b}
                       onClick={() => setBuildingFilter(b)}
-                      className={`px-2.5 py-1 text-xs font-medium rounded border transition-colors ${
+                      className={`px-2 sm:px-2.5 py-1 text-xs font-medium rounded border transition-colors ${
                         buildingFilter === b
                           ? b === 'A' 
                             ? 'bg-emerald-600 text-white border-emerald-500 font-bold'
@@ -298,7 +308,22 @@ export function RoomView({
                           : 'text-slate-400 border-slate-700 hover:bg-slate-800 hover:text-white'
                       }`}
                     >
-                      {b === 'all' ? 'All Buildings' : b === 'A' ? 'Building A' : 'Building J (Shared)'}
+                      {b === 'all' ? (
+                        <>
+                          <span className="hidden sm:inline">All Buildings</span>
+                          <span className="sm:hidden">All</span>
+                        </>
+                      ) : b === 'A' ? (
+                        <>
+                          <span className="hidden sm:inline">Building A</span>
+                          <span className="sm:hidden">Bldg A</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="hidden sm:inline">Building J (Shared)</span>
+                          <span className="sm:hidden">Bldg J</span>
+                        </>
+                      )}
                     </button>
                   ))}
                 </div>

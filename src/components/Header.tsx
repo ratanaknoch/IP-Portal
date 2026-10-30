@@ -83,7 +83,7 @@ export function Header({
   }, [showUserMenu]);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md transition-colors">
+    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-900/95 backdrop-blur-md transition-colors">
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 lg:px-6">
         <div className="flex items-center justify-between h-14 gap-2 sm:gap-3">
           
@@ -232,10 +232,11 @@ export function Header({
               <button
                 onClick={onOpenBookingModal}
                 title="Book Room for Make-up Class"
-                className="no-print flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/80 rounded-lg text-xs font-bold text-white shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                className="no-print flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/80 rounded-lg text-xs font-bold text-white shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 shrink-0" />
-                <span>Book Class</span>
+                <span className="hidden sm:inline">Book Class</span>
+                <span className="sm:hidden">Book</span>
               </button>
             )}
 
@@ -274,7 +275,7 @@ export function Header({
 
                 {/* Settings Dropdown Menu */}
                 {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-72 bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150 text-sm">
+                  <div className="absolute right-0 mt-2 w-64 sm:w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150 text-sm">
                     
                     {/* User Info Header */}
                     <div className="p-3 bg-slate-950/70 border border-slate-800/80 rounded-xl mb-2">
@@ -393,7 +394,7 @@ export function Header({
         </div>
 
         {/* Responsive Sub-Bar Navigation Tabs (Visible on < xl screens: mobile, tablet, compact laptops) */}
-        <div className="no-print xl:hidden flex items-center gap-1.5 py-2 border-t border-slate-800/70 overflow-x-auto">
+        <div className="no-print xl:hidden flex items-center gap-1.5 py-2 border-t border-slate-800/70 overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none]">
           <button
             onClick={() => onSelectMode('matrix')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 cursor-pointer transition-colors ${

@@ -9,44 +9,44 @@ export function QuickStats() {
   const totalSessions = ALL_SESSIONS.length;
 
   return (
-    <div className="no-print bg-slate-900/80 border border-slate-800 rounded-lg px-3.5 py-2 mb-3 flex flex-wrap items-center justify-between text-xs sm:text-sm text-slate-400 gap-2.5 shadow-xs">
-      <div className="flex items-center gap-3 sm:gap-5 flex-wrap">
-        <span className="font-semibold text-slate-200 text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5">
-          <Layers className="w-4 h-4 text-sky-400" />
-          <span>Academic Overview:</span>
-        </span>
-        
-        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-          <span className="text-slate-400">Cohorts:</span>
-          <span className="font-mono font-bold text-slate-100">{cohortsCount}</span>
-          <span className="text-slate-500 text-xs hidden sm:inline">(I1–I4)</span>
+    <div className="no-print bg-slate-900/90 border border-slate-800 rounded-lg px-3 py-2 mb-3 shadow-xs">
+      <div className="flex items-center justify-between gap-2 overflow-x-auto scrollbar-none [scrollbar-width:none] [-ms-overflow-style:none] text-xs sm:text-sm text-slate-400">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+          <span className="font-bold text-slate-200 text-[11px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5 shrink-0 px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60">
+            <Layers className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+            <span className="hidden xs:inline sm:inline">Academic Overview</span>
+            <span className="xs:hidden">Overview</span>
+          </span>
+          
+          <div className="flex items-center gap-1 text-[11px] sm:text-xs shrink-0 px-1.5 py-0.5 rounded bg-slate-950/60 border border-slate-800/80">
+            <span className="text-slate-400">Cohorts:</span>
+            <span className="font-mono font-bold text-slate-100">{cohortsCount}</span>
+          </div>
+
+          <div className="flex items-center gap-1 text-[11px] sm:text-xs shrink-0 px-1.5 py-0.5 rounded bg-slate-950/60 border border-slate-800/80">
+            <span className="text-slate-400">Groups:</span>
+            <span className="font-mono font-bold text-slate-100">{totalGroups}</span>
+          </div>
+
+          <div className="flex items-center gap-1 text-[11px] sm:text-xs shrink-0 px-1.5 py-0.5 rounded bg-slate-950/60 border border-slate-800/80">
+            <span className="text-slate-400">Faculty:</span>
+            <span className="font-mono font-bold text-slate-100">{lecturersCount}</span>
+          </div>
+
+          <div className="flex items-center gap-1 text-[11px] sm:text-xs shrink-0 px-1.5 py-0.5 rounded bg-slate-950/60 border border-slate-800/80">
+            <span className="text-slate-400">Venues:</span>
+            <span className="font-mono font-bold text-slate-100">{roomsCount}</span>
+          </div>
+
+          <div className="flex items-center gap-1 text-[11px] sm:text-xs shrink-0 px-1.5 py-0.5 rounded bg-slate-950/60 border border-slate-800/80">
+            <span className="text-slate-400">Weekly:</span>
+            <span className="font-mono font-bold text-slate-100">{totalSessions}</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-          <span className="text-slate-400">Groups:</span>
-          <span className="font-mono font-bold text-slate-100">{totalGroups}</span>
+        <div className="text-[11px] font-mono text-slate-500 hidden md:inline shrink-0">
+          Sem 1 · 2026–2027
         </div>
-
-        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-          <span className="text-slate-400">Faculty:</span>
-          <span className="font-mono font-bold text-slate-100">{lecturersCount}</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-          <span className="text-slate-400">Venues:</span>
-          <span className="font-mono font-bold text-slate-100">{roomsCount}</span>
-          <span className="text-slate-500 text-xs hidden md:inline">(Building A & J)</span>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-xs sm:text-sm">
-          <span className="text-slate-400">Weekly:</span>
-          <span className="font-mono font-bold text-slate-100">{totalSessions}</span>
-          <span className="text-slate-500 text-xs hidden sm:inline">sessions</span>
-        </div>
-      </div>
-
-      <div className="text-xs font-mono text-slate-400 hidden lg:inline">
-        Sem 1 · 2026–2027
       </div>
     </div>
   );

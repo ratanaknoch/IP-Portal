@@ -176,26 +176,28 @@ export function TimetableMatrix({
               <button
                 type="button"
                 onClick={() => handleWeekChange(0)}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                   currentWeekOffset === 0
                     ? 'bg-sky-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-slate-850'
                 }`}
               >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>This Week ({thisWeekBounds.formattedWeekRange})</span>
+                <Calendar className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">This Week ({thisWeekBounds.formattedWeekRange})</span>
+                <span className="sm:hidden">This Week</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleWeekChange(1)}
-                className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 sm:px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                   currentWeekOffset === 1
                     ? 'bg-sky-600 text-white shadow-xs'
                     : 'text-slate-400 hover:text-white hover:bg-slate-850'
                 }`}
               >
-                <CalendarDays className="w-3.5 h-3.5" />
-                <span>Next Week ({nextWeekBounds.formattedWeekRange})</span>
+                <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Next Week ({nextWeekBounds.formattedWeekRange})</span>
+                <span className="sm:hidden">Next Week</span>
                 {nextWeekMakeupsCount > 0 && (
                   <span className="ml-1 px-1.5 py-0.2 text-[10px] font-bold rounded-full bg-emerald-500 text-slate-950">
                     +{nextWeekMakeupsCount}

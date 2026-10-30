@@ -601,6 +601,11 @@ export default function App() {
             if (profile.role === 'monitor' || profile.role === 'admin') {
               setIsMonitorAuthorized(true);
               sessionStorage.setItem('itc_monitor_authorized', 'true');
+            } else {
+              setIsMonitorAuthorized(false);
+              sessionStorage.removeItem('itc_monitor_authorized');
+              setPortalRole('student');
+              localStorage.setItem('itc_portal_role', 'student');
             }
           } else {
             // Check local cache before assuming new user
@@ -1206,7 +1211,8 @@ export default function App() {
   }
 
   // Active Schedule & Matrix Portal View (Student or Class Monitor)
-  const isStudent = portalRole === 'student';
+  const isMonitorOrAdmin = userProfile?.role === 'monitor' || userProfile?.role === 'admin';
+  const isStudent = !isMonitorOrAdmin || portalRole === 'student';
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">

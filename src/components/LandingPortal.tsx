@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { 
   CalendarDays, 
   Users, 
@@ -17,7 +17,8 @@ import {
   LogIn,
   LogOut,
   UserCheck,
-  KeyRound
+  KeyRound,
+  ChevronDown
 } from 'lucide-react';
 import { getCambodiaTime, SCHEDULE_DATA } from '../data/scheduleData';
 import TechText from './TechText';
@@ -72,6 +73,23 @@ export function LandingPortal({
   const [showRestrictedNotice, setShowRestrictedNotice] = useState(false);
   const [monitorPinInput, setMonitorPinInput] = useState('');
   const [pinError, setPinError] = useState('');
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close profile dropdown on outside click
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    }
+    if (showUserDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserDropdown]);
 
   const cambodiaTime = getCambodiaTime();
 
@@ -80,24 +98,13 @@ export function LandingPortal({
   const portalBlueColor = '#38bdf8';
   const accentHighlight = '#38bdf8';
 
-  const isMonitorOrAdmin = userProfile?.role === 'monitor' || userProfile?.role === 'admin' || isMonitorAuthorized;
+  const isMonitorOrAdmin = userProfile?.role === 'monitor' || userProfile?.role === 'admin';
 
   const handleClassMonitorClick = () => {
     if (isMonitorOrAdmin) {
       onEnterClassMonitor();
       return;
     }
-
-    // If user is not logged in, prompt to log in / register
-    if (!userProfile) {
-      onOpenAuthModal();
-      return;
-    }
-
-    // If logged in as student, show the monitor verification modal with "Bigboss@67"
-    setPinError('');
-    setMonitorPinInput('');
-    setShowMonitorAuthModal(true);
   };
 
   const handleVerifyMonitor = async (e: React.FormEvent) => {
@@ -176,10 +183,10 @@ export function LandingPortal({
         />
       </div>
 
-      {/* Top Navbar */}
-      <nav className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between border-b border-slate-800/80 backdrop-blur-xs">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-white/90 backdrop-blur-sm p-0.5 shadow-md shadow-black/40 border border-white/25 flex items-center justify-center shrink-0">
+      {/* Top Navbar - z-40 ensures dropdowns always render and receive clicks above main (z-10) */}
+      <nav className="relative z-40 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-3.5 flex items-center justify-between border-b border-slate-800/80 backdrop-blur-xs">
+        <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-white/90 backdrop-blur-sm p-0.5 shadow-md shadow-black/40 border border-white/25 flex items-center justify-center shrink-0">
             <img
               src="/assets/cropped-itc_tight.png"
               alt="ITC School Logo"
@@ -187,19 +194,29 @@ export function LandingPortal({
               referrerPolicy="no-referrer"
             />
           </div>
-          <div>
-            <h1 className="text-sm sm:text-base font-bold tracking-tight text-white leading-tight">
-              Institute of Technology of Cambodia
-            </h1>
-            <p className="text-[11px] text-slate-300">
-              International Engineering School
-            </p>
+          <div className="min-w-0">
+            {/* Mobile: Clean short brand "IES" */}
+            <div className="sm:hidden">
+              <span className="font-extrabold text-base tracking-wider text-white">
+                IES
+              </span>
+            </div>
+            {/* Desktop / Tablet: Full Institutional Title */}
+            <div className="hidden sm:block">
+              <h1 className="text-sm sm:text-base font-bold tracking-tight text-white leading-tight">
+                Institute of Technology of Cambodia
+              </h1>
+              <p className="text-[11px] text-slate-300">
+                International Engineering School
+              </p>
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
           {/* Notifications Inbox Bell */}
           <button
+            type="button"
             onClick={onOpenInbox}
             title="Account Inbox & Announcements"
             className="relative p-2 rounded-md bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
@@ -212,67 +229,130 @@ export function LandingPortal({
             )}
           </button>
 
-          {/* User Account / Sign In Pill */}
+          {/* User Account: Profile Box Only with Dropdown Menu for Admin & Sign Out */}
           {userProfile ? (
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="relative" ref={userDropdownRef}>
               <button
                 type="button"
-                onClick={onOpenAcademicStatus}
-                title="Click to view academic status & year promotion"
-                className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-850 border border-slate-800 hover:border-sky-500/50 rounded-lg text-xs cursor-pointer transition-all"
+                onClick={() => setShowUserDropdown((prev) => !prev)}
+                title="Account & Settings"
+                className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-lg text-xs cursor-pointer transition-all"
               >
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
                   userProfile.year === 'Alumni'
                     ? 'bg-amber-500/20 border border-amber-400/40 text-amber-300'
                     : 'bg-sky-500/20 border border-sky-400/40 text-sky-300'
                 }`}>
-                  {userProfile.displayName.charAt(0).toUpperCase()}
+                  {userProfile.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'U'}
                 </div>
                 <div className="hidden sm:block text-left">
-                  <div className="font-semibold text-white truncate max-w-[120px] text-[11px]">
+                  <div className="font-semibold text-white truncate max-w-[110px] text-[11px] leading-tight">
                     {userProfile.displayName}
                   </div>
                   <div className="flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider">
                     {userProfile.role === 'admin' ? (
                       <span className="text-amber-400">Admin</span>
-                    ) : userProfile.year === 'Alumni' ? (
-                      <span className="text-amber-400 font-extrabold flex items-center gap-0.5">
-                        Alumni · Graduate
-                      </span>
                     ) : userProfile.role === 'monitor' ? (
-                      <span className="text-sky-400">Monitor ({userProfile.year || userProfile.groupId})</span>
+                      <span className="text-sky-400">Monitor</span>
                     ) : (
-                      <span className="text-slate-400">
-                        {userProfile.year ? `${userProfile.year} (${userProfile.groupId})` : userProfile.groupId}
-                      </span>
+                      <span className="text-slate-400">Student</span>
                     )}
                   </div>
                 </div>
+                <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Bongthom Dashboard shortcut button if admin */}
-              {userProfile.role === 'admin' && onOpenAdminDashboard && (
-                <button
-                  onClick={onOpenAdminDashboard}
-                  title="Open Bongthom Dashboard"
-                  className="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span className="hidden md:inline">Bongthom</span>
-                </button>
+              {/* Profile Dropdown Menu */}
+              {showUserDropdown && (
+                <div className="absolute right-0 mt-2 w-64 sm:w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.9)] p-2.5 z-50 animate-in fade-in zoom-in-95 duration-150 text-sm">
+                  {/* User Profile Header */}
+                  <div className="p-3 bg-slate-950 border border-slate-800 rounded-xl mb-2 text-left">
+                    <div className="font-bold text-white text-sm sm:text-base truncate">
+                      {userProfile.displayName}
+                    </div>
+                    <div className="text-xs text-slate-400 font-mono truncate">
+                      {userProfile.email}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                      <span className={`text-[10px] sm:text-[11px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                        userProfile.role === 'admin'
+                          ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                          : userProfile.role === 'monitor'
+                          ? 'bg-sky-950 text-sky-300 border border-sky-800'
+                          : 'bg-slate-800 text-slate-300'
+                      }`}>
+                        {userProfile.role === 'admin' ? 'Bongthom' : userProfile.role}
+                      </span>
+                      {userProfile.year && (
+                        <span className={`text-[10px] sm:text-[11px] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                          userProfile.year === 'Alumni'
+                            ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                            : 'bg-sky-950 text-sky-300 border border-sky-800'
+                        }`}>
+                          {userProfile.year}
+                        </span>
+                      )}
+                      {userProfile.groupId && userProfile.year !== 'Alumni' && (
+                        <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md bg-slate-800 border border-slate-700 text-slate-200">
+                          {userProfile.groupId}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Dropdown Menu Items */}
+                  <div className="space-y-1 text-left">
+                    {/* Admin Bongthom Dashboard */}
+                    {userProfile.role === 'admin' && onOpenAdminDashboard && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onOpenAdminDashboard();
+                        }}
+                        className="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left text-amber-300 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer text-xs sm:text-sm"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0" />
+                        <span>Bongthom Dashboard</span>
+                      </button>
+                    )}
+
+                    {/* Academic Status & Promotion */}
+                    {onOpenAcademicStatus && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onOpenAcademicStatus();
+                        }}
+                        className="w-full px-3 py-2 rounded-lg hover:bg-slate-800 text-left text-slate-200 hover:text-white flex items-center gap-2.5 transition-colors cursor-pointer text-xs sm:text-sm font-medium"
+                      >
+                        <GraduationCap className="w-4 h-4 text-sky-400 shrink-0" />
+                        <span>Academic Status & Promotion</span>
+                      </button>
+                    )}
+
+                    {/* Sign Out */}
+                    <div className="pt-1 mt-1 border-t border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowUserDropdown(false);
+                          onLogout();
+                        }}
+                        className="w-full px-3 py-2 rounded-lg hover:bg-red-950/60 text-left text-red-300 hover:text-red-200 font-semibold flex items-center gap-2.5 transition-colors cursor-pointer text-xs sm:text-sm"
+                      >
+                        <LogOut className="w-4 h-4 text-red-400 shrink-0" />
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
-
-              {/* Logout button */}
-              <button
-                onClick={onLogout}
-                title="Sign Out"
-                className="p-2 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 text-slate-400 hover:text-white transition-colors cursor-pointer"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
             </div>
           ) : (
             <button
+              type="button"
               onClick={onOpenAuthModal}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
             >
@@ -291,11 +371,11 @@ export function LandingPortal({
       </nav>
 
       {/* Hero Body */}
-      <main className="relative z-10 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 flex-1 flex flex-col justify-center items-center text-center">
+      <main className="relative z-10 w-full max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8 flex-1 flex flex-col justify-center items-center text-center">
         
         {/* Interactive Metallic ITC Emblem Animation */}
         <div className="mb-2 sm:mb-3 inline-flex items-center justify-center transition-transform duration-200 hover:scale-105">
-          <div className="w-28 h-28 sm:w-32 sm:h-32 md:w-36 md:h-36 relative rounded-full overflow-hidden bg-slate-950/80 border border-slate-750 shadow-[0_12px_28px_rgba(0,0,0,0.7)] flex items-center justify-center">
+          <div className="w-24 h-24 sm:w-32 sm:h-32 md:w-36 md:h-36 relative rounded-full overflow-hidden bg-slate-950/80 border border-slate-750 shadow-[0_12px_28px_rgba(0,0,0,0.7)] flex items-center justify-center">
             <MetallicPaint
               imageSrc="/assets/cropped-itc_tight.png"
               color="#f8fafc"
@@ -310,63 +390,98 @@ export function LandingPortal({
           </div>
         </div>
 
-        {/* 3-Line Centered Hero Title */}
-        <div className="flex flex-col items-center justify-center my-0.5 text-center w-full">
-          <div className="w-full max-w-sm h-16 sm:h-20 flex items-center justify-center text-white" style={{ color: '#ffffff' }}>
-            <TechText
-              text="ITC"
-              fontWeight={900}
-              fontSize={76}
-              letterSpacing={0.06}
-              color={letterColor}
-              accentColor={accentHighlight}
-              reveal="letter"
-              dashLength={4}
-              dashGap={2}
-              specks={12}
-              intro="assemble"
-              introDuration={1.3}
-              clickKick={true}
-              guides={false}
-            />
+        {/* 3-Line Centered Hero Title - Responsive for Mobile & Desktop */}
+        <div className="flex flex-col items-center justify-center my-1 text-center w-full">
+          {/* Mobile view (< sm): Clean, unclipped responsive typography */}
+          <div className="sm:hidden flex flex-col items-center justify-center w-full space-y-0.5 mb-2">
+            <div className="w-full max-w-[220px] h-14 flex items-center justify-center text-white" style={{ color: '#ffffff' }}>
+              <TechText
+                text="ITC"
+                fontWeight={900}
+                fontSize={46}
+                letterSpacing={0.06}
+                color={letterColor}
+                accentColor={accentHighlight}
+                reveal="letter"
+                dashLength={3}
+                dashGap={2}
+                specks={6}
+                sweep={false}
+                selection={false}
+                labels={false}
+                draggable={false}
+                intro="assemble"
+                introDuration={1.1}
+                clickKick={true}
+                guides={false}
+              />
+            </div>
+            <div className="text-xs font-extrabold tracking-widest text-white uppercase px-2 leading-snug">
+              INTERNATIONAL ENGINEERING SCHOOL
+            </div>
+            <div className="text-2xl font-black tracking-[0.2em] text-sky-400 uppercase pt-0.5">
+              PORTAL
+            </div>
           </div>
 
-          <div className="w-full max-w-4xl h-12 sm:h-15 -mt-1.5 sm:-mt-2 flex items-center justify-center text-white" style={{ color: '#ffffff' }}>
-            <TechText
-              text="INTERNATIONAL ENGINEERING SCHOOL"
-              fontWeight={800}
-              fontSize={30}
-              letterSpacing={0.03}
-              color={letterColor}
-              accentColor={accentHighlight}
-              reveal="letter"
-              dashLength={4}
-              dashGap={2}
-              specks={14}
-              intro="assemble"
-              introDuration={1.6}
-              clickKick={true}
-              guides={false}
-            />
-          </div>
+          {/* Desktop & Tablet view (sm+) */}
+          <div className="hidden sm:flex flex-col items-center justify-center w-full">
+            <div className="w-full max-w-sm h-16 sm:h-20 flex items-center justify-center text-white" style={{ color: '#ffffff' }}>
+              <TechText
+                text="ITC"
+                fontWeight={900}
+                fontSize={76}
+                letterSpacing={0.06}
+                color={letterColor}
+                accentColor={accentHighlight}
+                reveal="letter"
+                dashLength={4}
+                dashGap={2}
+                specks={12}
+                intro="assemble"
+                introDuration={1.3}
+                clickKick={true}
+                guides={false}
+              />
+            </div>
 
-          <div className="w-full max-w-xs h-12 sm:h-15 -mt-1 sm:-mt-1.5 flex items-center justify-center text-sky-400" style={{ color: portalBlueColor }}>
-            <TechText
-              text="PORTAL"
-              fontWeight={900}
-              fontSize={42}
-              letterSpacing={0.16}
-              color={portalBlueColor}
-              accentColor="#93c5fd"
-              reveal="letter"
-              dashLength={3}
-              dashGap={2}
-              specks={8}
-              intro="assemble"
-              introDuration={1.8}
-              clickKick={true}
-              guides={false}
-            />
+            <div className="w-full max-w-4xl h-12 sm:h-15 -mt-1.5 sm:-mt-2 flex items-center justify-center text-white" style={{ color: '#ffffff' }}>
+              <TechText
+                text="INTERNATIONAL ENGINEERING SCHOOL"
+                fontWeight={800}
+                fontSize={30}
+                letterSpacing={0.03}
+                color={letterColor}
+                accentColor={accentHighlight}
+                reveal="letter"
+                dashLength={4}
+                dashGap={2}
+                specks={14}
+                intro="assemble"
+                introDuration={1.6}
+                clickKick={true}
+                guides={false}
+              />
+            </div>
+
+            <div className="w-full max-w-xs h-12 sm:h-15 -mt-1 sm:-mt-1.5 flex items-center justify-center text-sky-400" style={{ color: portalBlueColor }}>
+              <TechText
+                text="PORTAL"
+                fontWeight={900}
+                fontSize={42}
+                letterSpacing={0.16}
+                color={portalBlueColor}
+                accentColor="#93c5fd"
+                reveal="letter"
+                dashLength={3}
+                dashGap={2}
+                specks={8}
+                intro="assemble"
+                introDuration={1.8}
+                clickKick={true}
+                guides={false}
+              />
+            </div>
           </div>
         </div>
 
@@ -378,41 +493,43 @@ export function LandingPortal({
           </span>
         </div>
 
-        {/* 3 Primary Pathways */}
-        <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+        {/* Primary Pathways */}
+        <div className={`w-full max-w-4xl grid grid-cols-1 ${isMonitorOrAdmin ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-4 text-left`}>
           
-          {/* Card 1: Class Monitor Portal */}
-          <div 
-            onClick={handleClassMonitorClick}
-            className="group cursor-pointer bg-slate-900/90 hover:bg-slate-900 border border-slate-700/80 hover:border-sky-400 rounded-lg p-5 shadow-lg hover:shadow-sky-950/40 transition-all duration-200 flex flex-col justify-between backdrop-blur-xs"
-          >
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="w-10 h-10 rounded-md bg-white text-slate-900 flex items-center justify-center shadow-xs">
-                  <CalendarDays className="w-5 h-5" />
+          {/* Card 1: Class Monitor Portal (Only visible to Monitor / Admin users) */}
+          {isMonitorOrAdmin && (
+            <div 
+              onClick={handleClassMonitorClick}
+              className="group cursor-pointer bg-slate-900/90 hover:bg-slate-900 border border-slate-700/80 hover:border-sky-400 rounded-lg p-5 shadow-lg hover:shadow-sky-950/40 transition-all duration-200 flex flex-col justify-between backdrop-blur-xs"
+            >
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="w-10 h-10 rounded-md bg-white text-slate-900 flex items-center justify-center shadow-xs">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300 bg-amber-950/80 border border-amber-800 px-2 py-0.5 rounded flex items-center gap-1">
+                    <Lock className="w-3 h-3" />
+                    Monitor Only
+                  </span>
                 </div>
-                <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-300 bg-amber-950/80 border border-amber-800 px-2 py-0.5 rounded flex items-center gap-1">
-                  <Lock className="w-3 h-3" />
-                  Monitor Only
+
+                <div>
+                  <h3 className="text-lg font-bold text-white group-hover:text-sky-400 transition-colors">
+                    Class Monitor Portal
+                  </h3>
+                </div>
+              </div>
+
+              <div className="pt-6 mt-4 border-t border-slate-800 flex items-center justify-between text-xs font-semibold text-white">
+                <span className="group-hover:translate-x-0.5 transition-transform text-slate-200 group-hover:text-white">
+                  Enter Monitor Portal
                 </span>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-bold text-white group-hover:text-sky-400 transition-colors">
-                  Class Monitor Portal
-                </h3>
+                <div className="w-7 h-7 rounded bg-slate-800 group-hover:bg-white group-hover:text-slate-900 flex items-center justify-center transition-colors">
+                  <ArrowRight className="w-4 h-4" />
+                </div>
               </div>
             </div>
-
-            <div className="pt-6 mt-4 border-t border-slate-800 flex items-center justify-between text-xs font-semibold text-white">
-              <span className="group-hover:translate-x-0.5 transition-transform text-slate-200 group-hover:text-white">
-                {!userProfile ? 'Sign In Required' : isMonitorOrAdmin ? 'Enter Monitor Portal' : 'Enter as Monitor'}
-              </span>
-              <div className="w-7 h-7 rounded bg-slate-800 group-hover:bg-white group-hover:text-slate-900 flex items-center justify-center transition-colors">
-                <ArrowRight className="w-4 h-4" />
-              </div>
-            </div>
-          </div>
+          )}
 
           {/* Card 2: Student Club */}
           <div 
