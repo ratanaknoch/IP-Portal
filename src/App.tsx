@@ -647,9 +647,13 @@ export default function App() {
     };
   }, []);
 
-  // Subscribe to Notifications in real-time
+  // Subscribe to Notifications in real-time (Only when signed into an account)
   useEffect(() => {
-    const currentRole = userProfile?.role || 'student';
+    if (!userProfile) {
+      setNotifications([]);
+      return;
+    }
+    const currentRole = userProfile.role || 'student';
     const unsubscribeNotes = subscribeToNotifications(currentRole, (items) => {
       setNotifications(items);
     });
@@ -657,13 +661,14 @@ export default function App() {
     return () => {
       unsubscribeNotes();
     };
-  }, [userProfile?.role]);
+  }, [userProfile]);
 
-  const effectiveNotifUid = userProfile?.uid || 'guest';
+  const effectiveNotifUid = userProfile?.uid || '';
 
-  // Local cleared notification IDs per user for instant optimistic updates & guest support
+  // Local cleared notification IDs per signed-in user for instant optimistic updates
   const [clearedNotifIds, setClearedNotifIds] = useState<string[]>(() => {
     try {
+      if (!effectiveNotifUid) return [];
       const stored = localStorage.getItem(`itc_cleared_notifs_${effectiveNotifUid}`);
       return stored ? JSON.parse(stored) : [];
     } catch {
@@ -673,6 +678,10 @@ export default function App() {
 
   useEffect(() => {
     try {
+      if (!effectiveNotifUid) {
+        setClearedNotifIds([]);
+        return;
+      }
       const stored = localStorage.getItem(`itc_cleared_notifs_${effectiveNotifUid}`);
       setClearedNotifIds(stored ? JSON.parse(stored) : []);
     } catch {
@@ -681,6 +690,7 @@ export default function App() {
   }, [effectiveNotifUid]);
 
   const handleClearLocalNotification = useCallback((id: string) => {
+    if (!effectiveNotifUid) return;
     setClearedNotifIds((prev) => {
       const next = prev.includes(id) ? prev : [...prev, id];
       try {
@@ -693,6 +703,7 @@ export default function App() {
   }, [effectiveNotifUid]);
 
   const handleClearAllLocalNotifications = useCallback((ids: string[]) => {
+    if (!effectiveNotifUid) return;
     setClearedNotifIds((prev) => {
       const next = Array.from(new Set([...prev, ...ids]));
       try {
@@ -704,15 +715,19 @@ export default function App() {
     });
   }, [effectiveNotifUid]);
 
-  // Filter out notifications cleared by the current user
-  const visibleNotifications = notifications.filter(
-    (n) => !n.clearedBy?.includes(effectiveNotifUid) && !clearedNotifIds.includes(n.id)
-  );
+  // Filter out notifications cleared by the current user (strictly empty if not signed in)
+  const visibleNotifications = userProfile
+    ? notifications.filter(
+        (n) => !n.clearedBy?.includes(effectiveNotifUid) && !clearedNotifIds.includes(n.id)
+      )
+    : [];
 
-  // Compute unread notification count
-  const unreadNotificationsCount = visibleNotifications.filter(
-    (n) => !n.readBy || !n.readBy.includes(effectiveNotifUid)
-  ).length;
+  // Compute unread notification count (strictly 0 if not signed in)
+  const unreadNotificationsCount = userProfile
+    ? visibleNotifications.filter(
+        (n) => !n.readBy || !n.readBy.includes(effectiveNotifUid)
+      ).length
+    : 0;
 
   const handleSaveMakeupBooking = async (booking: MakeupClassBooking) => {
     setMakeupBookings(prev => {
@@ -798,6 +813,8 @@ export default function App() {
     sessionStorage.removeItem('itc_monitor_authorized');
     sessionStorage.removeItem('itc_monitor_gen');
     setUserProfile(null);
+    setNotifications([]);
+    setIsInboxOpen(false);
     setIsMonitorAuthorized(false);
     setIsLoggingOut(false);
     setCurrentView('landing');
@@ -1137,16 +1154,18 @@ export default function App() {
           />
         )}
 
-        {/* Notifications Inbox Modal */}
-        <NotificationInboxModal
-          isOpen={isInboxOpen}
-          onClose={() => setIsInboxOpen(false)}
-          notifications={visibleNotifications}
-          currentUserId={userProfile?.uid}
-          currentUserRole={userProfile?.role}
-          onClearLocalNotification={handleClearLocalNotification}
-          onClearAllLocalNotifications={handleClearAllLocalNotifications}
-        />
+        {/* Notifications Inbox Modal (Only for signed-in users) */}
+        {userProfile && (
+          <NotificationInboxModal
+            isOpen={isInboxOpen}
+            onClose={() => setIsInboxOpen(false)}
+            notifications={visibleNotifications}
+            currentUserId={userProfile.uid}
+            currentUserRole={userProfile.role}
+            onClearLocalNotification={handleClearLocalNotification}
+            onClearAllLocalNotifications={handleClearAllLocalNotifications}
+          />
+        )}
 
         {/* Academic Status & Year Promotion Modal on Landing */}
         {showClassChangeModal && userProfile && (

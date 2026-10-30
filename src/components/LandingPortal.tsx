@@ -213,30 +213,32 @@ export function LandingPortal({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          {/* Notifications Inbox Bell */}
-          <button
-            type="button"
-            onClick={onOpenInbox}
-            title="Account Inbox & Announcements"
-            className="relative p-2 rounded-md bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-          >
-            <Bell className="w-4 h-4" />
-            {unreadNotificationsCount > 0 && (
-              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-sky-500 text-slate-950 text-[10px] font-bold flex items-center justify-center animate-pulse">
-                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
-              </span>
-            )}
-          </button>
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Notifications Inbox Bell (Only visible when signed into an account) */}
+          {userProfile && (
+            <button
+              type="button"
+              onClick={onOpenInbox}
+              title="Account Inbox & Announcements"
+              className="relative h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer shrink-0"
+            >
+              <Bell className="w-4 h-4" />
+              {unreadNotificationsCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-sky-500 text-slate-950 text-[10px] font-bold flex items-center justify-center animate-pulse">
+                  {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+                </span>
+              )}
+            </button>
+          )}
 
           {/* User Account: Profile Box Only with Dropdown Menu for Admin & Sign Out */}
           {userProfile ? (
-            <div className="relative" ref={userDropdownRef}>
+            <div className="relative shrink-0" ref={userDropdownRef}>
               <button
                 type="button"
                 onClick={() => setShowUserDropdown((prev) => !prev)}
                 title="Account & Settings"
-                className="flex items-center gap-1.5 sm:gap-2 px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-lg text-xs cursor-pointer transition-all"
+                className="h-9 sm:h-10 flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-3 bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 rounded-lg text-xs cursor-pointer transition-all"
               >
                 <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
                   userProfile.year === 'Alumni'
@@ -245,11 +247,11 @@ export function LandingPortal({
                 }`}>
                   {userProfile.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'U'}
                 </div>
-                <div className="hidden sm:block text-left">
-                  <div className="font-semibold text-white truncate max-w-[110px] text-[11px] leading-tight">
+                <div className="hidden sm:flex flex-col justify-center text-left leading-none">
+                  <div className="font-semibold text-white truncate max-w-[115px] text-[11px] leading-tight">
                     {userProfile.displayName}
                   </div>
-                  <div className="flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider">
+                  <div className="flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider leading-tight mt-0.5">
                     {userProfile.role === 'admin' ? (
                       <span className="text-amber-400">Admin</span>
                     ) : userProfile.role === 'monitor' ? (
@@ -354,16 +356,16 @@ export function LandingPortal({
             <button
               type="button"
               onClick={onOpenAuthModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer"
+              className="h-9 sm:h-10 flex items-center gap-1.5 px-3 sm:px-3.5 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold rounded-lg text-xs transition-colors shadow-sm cursor-pointer shrink-0"
             >
-              <LogIn className="w-3.5 h-3.5" />
+              <LogIn className="w-3.5 h-3.5 shrink-0" />
               <span>Sign In / Register</span>
             </button>
           )}
 
           {/* Cambodia Clock */}
-          <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 bg-slate-900/90 border border-slate-800 rounded-md text-xs text-slate-200">
-            <Clock className="w-3.5 h-3.5 text-sky-400" />
+          <div className="hidden lg:flex h-10 items-center gap-2 px-3.5 bg-slate-900/90 border border-slate-800 rounded-lg text-xs text-slate-200 shrink-0">
+            <Clock className="w-3.5 h-3.5 text-sky-400 shrink-0" />
             <span className="font-mono tabular-nums font-semibold text-white">{cambodiaTime.timeString}</span>
             <span className="text-slate-400">Phnom Penh</span>
           </div>

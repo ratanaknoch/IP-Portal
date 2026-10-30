@@ -232,7 +232,7 @@ export function Header({
               <button
                 onClick={onOpenBookingModal}
                 title="Book Room for Make-up Class"
-                className="no-print flex items-center gap-1.5 px-2 sm:px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/80 rounded-lg text-xs font-bold text-white shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                className="no-print h-9 sm:h-10 flex items-center gap-1.5 px-2.5 sm:px-3.5 bg-emerald-700 hover:bg-emerald-600 border border-emerald-500/80 rounded-lg text-xs font-bold text-white shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
               >
                 <Plus className="w-3.5 h-3.5 shrink-0" />
                 <span className="hidden sm:inline">Book Class</span>
@@ -240,12 +240,12 @@ export function Header({
               </button>
             )}
 
-            {/* Notification Bell */}
-            {onOpenInbox && (
+            {/* Notification Bell (Only visible when signed into an account) */}
+            {userProfile && onOpenInbox && (
               <button
                 onClick={onOpenInbox}
                 title="Notification Inbox"
-                className="no-print relative p-2 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80 rounded-lg text-sm transition-colors cursor-pointer shrink-0"
+                className="no-print relative h-9 w-9 sm:h-10 sm:w-10 flex items-center justify-center text-slate-300 hover:text-white bg-slate-800/70 hover:bg-slate-800 border border-slate-700/80 rounded-lg text-sm transition-colors cursor-pointer shrink-0"
               >
                 <Bell className="w-4 h-4 text-slate-200" />
                 {unreadNotificationsCount > 0 && (
@@ -261,14 +261,25 @@ export function Header({
               <div className="relative no-print shrink-0" ref={userMenuRef}>
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2 px-2 sm:px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-750 border border-slate-700 text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap"
+                  className="h-9 sm:h-10 flex items-center gap-1.5 sm:gap-2.5 px-2.5 sm:px-3 rounded-lg bg-slate-800/90 hover:bg-slate-750 border border-slate-700 text-xs sm:text-sm transition-all cursor-pointer whitespace-nowrap"
                   title="Account & Settings"
                 >
-                  <div className="w-6 h-6 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center text-xs font-bold shrink-0">
+                  <div className="w-6 h-6 rounded-full bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center text-[11px] font-bold shrink-0">
                     {userProfile.displayName ? userProfile.displayName.charAt(0).toUpperCase() : 'U'}
                   </div>
-                  <div className="hidden sm:block text-left max-w-[95px] md:max-w-[125px] truncate font-semibold text-white text-xs">
-                    {userProfile.displayName || userProfile.email.split('@')[0]}
+                  <div className="hidden sm:flex flex-col justify-center text-left leading-none">
+                    <div className="max-w-[95px] md:max-w-[125px] truncate font-semibold text-white text-[11px] leading-tight">
+                      {userProfile.displayName || userProfile.email.split('@')[0]}
+                    </div>
+                    <div className="flex items-center gap-1 text-[9px] uppercase font-bold tracking-wider leading-tight mt-0.5">
+                      {userProfile.role === 'admin' ? (
+                        <span className="text-amber-400">Admin</span>
+                      ) : userProfile.role === 'monitor' ? (
+                        <span className="text-sky-400">Monitor</span>
+                      ) : (
+                        <span className="text-slate-400">Student</span>
+                      )}
+                    </div>
                   </div>
                   <ChevronDown className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform ${showUserMenu ? 'rotate-180' : ''}`} />
                 </button>
@@ -382,9 +393,9 @@ export function Header({
               onOpenAuthModal && (
                 <button
                   onClick={onOpenAuthModal}
-                  className="no-print flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs sm:text-sm font-bold shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                  className="no-print h-9 sm:h-10 flex items-center gap-1.5 px-3 sm:px-3.5 rounded-lg bg-sky-500 hover:bg-sky-400 text-slate-950 text-xs font-bold shadow-xs transition-colors cursor-pointer whitespace-nowrap shrink-0"
                 >
-                  <LogIn className="w-4 h-4 shrink-0" />
+                  <LogIn className="w-3.5 h-3.5 shrink-0" />
                   <span>Sign In</span>
                 </button>
               )
