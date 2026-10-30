@@ -117,9 +117,10 @@ service cloud.firestore {
         'course', 'room', 'groupId', 'date', 'day', 'time', 'bookedBy', 'bookedByUid', 'createdAt'
       ]) &&
       data.keys().hasOnly([
-        'course', 'sessionType', 'room', 'generation', 'groupId', 'date', 'day',
+        'id', 'course', 'sessionType', 'room', 'generation', 'groupId', 'date', 'day',
         'time', 'timeSlots', 'bookedBy', 'bookedByUid', 'note', 'createdAt'
       ]) &&
+      (!('id' in data) || (data.id is string && data.id.size() <= 128)) &&
       data.course is string && data.course.size() >= 1 && data.course.size() <= 200 &&
       (!('sessionType' in data) || (data.sessionType is string && data.sessionType in ['Lecture', 'Tutorial', 'Practical'])) &&
       data.room is string && data.room.size() >= 1 && data.room.size() <= 100 &&
@@ -150,9 +151,10 @@ service cloud.firestore {
         'groupId', 'day', 'date', 'time', 'course', 'cancelledBy', 'cancelledByUid', 'createdAt'
       ]) &&
       data.keys().hasOnly([
-        'groupId', 'cohort', 'day', 'date', 'time', 'course', 'type', 'lecturer',
+        'id', 'groupId', 'cohort', 'day', 'date', 'time', 'course', 'type', 'lecturer',
         'room', 'cancelledBy', 'cancelledByUid', 'reason', 'createdAt'
       ]) &&
+      (!('id' in data) || (data.id is string && data.id.size() <= 128)) &&
       isValidGroupId(data.groupId) &&
       (!('cohort' in data) || (data.cohort is string && data.cohort in ['I1', 'I2', 'I3', 'I4', 'I5', 'Alumni'])) &&
       data.day is string && data.day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] &&
@@ -236,7 +238,7 @@ service cloud.firestore {
     // 4.2 Make-up Class Bookings (Authenticated Read, Group-Scoped Monitor or Admin Write, Zero Email PII)
     match /makeupBookings/{bookingId} {
       allow get: if isSignedIn() && isVerified() && isValidId(bookingId);
-      allow list: if isSignedIn() && isVerified() && resource.data.createdAt is string;
+      allow list: if isSignedIn() && isVerified();
 
       allow create: if isSignedIn() && isVerified() && isValidId(bookingId) && isValidMakeupBooking(incoming()) &&
         (isAdmin() || isMonitorForGroup(incoming().groupId)) &&
@@ -268,7 +270,7 @@ service cloud.firestore {
     // 4.3 Cancelled Classes (Authenticated Read, Group-Scoped Monitor or Admin Write, Zero Email PII)
     match /cancelledClasses/{cancelId} {
       allow get: if isSignedIn() && isVerified() && isValidId(cancelId);
-      allow list: if isSignedIn() && isVerified() && resource.data.createdAt is string;
+      allow list: if isSignedIn() && isVerified();
 
       allow create: if isSignedIn() && isVerified() && isValidId(cancelId) && isValidCancelledClass(incoming()) &&
         (isAdmin() || isMonitorForGroup(incoming().groupId)) &&

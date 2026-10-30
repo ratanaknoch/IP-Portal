@@ -111,8 +111,22 @@ export default function App() {
     }
     return 'student';
   });
-  // User Profile & Firebase Auth state (always re-verified against Firebase Auth on mount)
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  // User Profile & Firebase Auth state (hydrated from cache to prevent refresh flicker, strictly re-verified against Firebase Auth)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => {
+    try {
+      const cached = localStorage.getItem('itc_user_profile');
+      if (cached) {
+        const parsed = JSON.parse(cached) as UserProfile;
+        if (parsed && parsed.uid && parsed.email) {
+          return parsed;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
+  const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
 
   // Monitor authorization strictly derived from server-verified userProfile role
   const isMonitorAuthorized = Boolean(
@@ -330,7 +344,7 @@ export default function App() {
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/rooms' || cleanPath === '/room') {
       setCurrentView('schedule');
-      if (isMonitorAuthorized) {
+      if (!isAuthReady || isMonitorAuthorized) {
         setActiveMode('room');
         setPortalRole('class-monitor');
         try {
@@ -344,7 +358,7 @@ export default function App() {
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/lecturers' || cleanPath === '/lecturer') {
       setCurrentView('schedule');
-      if (isMonitorAuthorized) {
+      if (!isAuthReady || isMonitorAuthorized) {
         setActiveMode('lecturer');
         setPortalRole('class-monitor');
         try {
@@ -372,14 +386,14 @@ export default function App() {
       setIsFreeRoomsOpen(false);
       setIsBookingModalOpen(false);
     } else if (cleanPath === '/free-rooms') {
-      if (userProfile || auth.currentUser) {
+      if (!isAuthReady || userProfile || auth.currentUser) {
         setIsFreeRoomsOpen(true);
       } else {
         setIsAuthModalOpen(true);
       }
     } else if (cleanPath === '/booking' || cleanPath === '/makeup') {
       setCurrentView('schedule');
-      if (isMonitorAuthorized) {
+      if (!isAuthReady || isMonitorAuthorized) {
         setIsBookingModalOpen(true);
       }
     } else if (cleanPath === '/login' || cleanPath === '/auth') {
@@ -401,7 +415,7 @@ export default function App() {
       setIsBookingModalOpen(false);
       setIsAuthModalOpen(false);
     }
-  }, [isMonitorAuthorized, userProfile]);
+  }, [isAuthReady, isMonitorAuthorized, userProfile]);
 
   // Listen to popstate and hashchange (browser back/forward or URL hash navigation)
   useEffect(() => {
@@ -467,7 +481,10 @@ export default function App() {
   // Subscribe to real-time updates from Firebase Firestore when authenticated
   useEffect(() => {
     testFirestoreConnection();
-    if (!userProfile || !auth.currentUser) {
+    if (!isAuthReady) {
+      return;
+    }
+    if (!auth.currentUser) {
       setMakeupBookings([]);
       setCancelledClasses([]);
       return;
@@ -569,7 +586,7 @@ export default function App() {
       unsubscribeCancelled();
       clearInterval(expiryInterval);
     };
-  }, [userProfile?.uid]);
+  }, [isAuthReady, userProfile?.uid]);
 
   // Listen to Firebase Auth state & live Firestore UserProfile updates
   useEffect(() => {
@@ -595,6 +612,7 @@ export default function App() {
         setPendingFirebaseUser(null);
         setMakeupBookings([]);
         setCancelledClasses([]);
+        setIsAuthReady(true);
         try {
           localStorage.removeItem('itc_user_profile');
           localStorage.removeItem('itc_admin_auth');
@@ -618,9 +636,12 @@ export default function App() {
           setPendingFirebaseUser(null);
           if (profile.groupId) {
             setMyCohort(profile.groupId);
-            setSelectedGroup(profile.groupId);
-            const grp = SCHEDULE_DATA.groups.find(g => g.id === profile.groupId);
-            if (grp) setSelectedCohort(grp.cohort);
+            const urlGroup = new URLSearchParams(window.location.search).get('group');
+            if (!urlGroup) {
+              setSelectedGroup(profile.groupId);
+              const grp = SCHEDULE_DATA.groups.find(g => g.id === profile.groupId);
+              if (grp) setSelectedCohort(grp.cohort);
+            }
           }
           if (profile.role !== 'monitor' && profile.role !== 'admin') {
             setPortalRole('student');
@@ -654,6 +675,8 @@ export default function App() {
         });
       } catch (err) {
         console.warn('Could not fetch user profile:', err);
+      } finally {
+        setIsAuthReady(true);
       }
     });
 
@@ -948,14 +971,15 @@ export default function App() {
   // Active group object
   const activeGroupObj = SCHEDULE_DATA.groups.find(g => g.id === selectedGroup) || SCHEDULE_DATA.groups[0];
 
-  // Auth Guard (strictly requires active Firebase Auth session, never trusts unverified localStorage alone)
+  // Auth Guard (waits for Firebase Auth initialization before redirecting unauthenticated users)
   useEffect(() => {
-    if (!userProfile && !auth.currentUser && currentView === 'schedule') {
+    if (!isAuthReady) return;
+    if (!userProfile && !auth.currentUser && !pendingFirebaseUser && currentView === 'schedule') {
       setCurrentView('landing');
       setIsAuthModalOpen(true);
       navigateTo('/login');
     }
-  }, [userProfile, currentView, navigateTo]);
+  }, [isAuthReady, userProfile, pendingFirebaseUser, currentView, navigateTo]);
 
   // Handler to enter Student Portal directly into the timetable
   const handleEnterStudentSchedule = (targetGroupId?: string, profileOverride?: UserProfile | null) => {
